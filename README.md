@@ -1,6 +1,6 @@
 # ERS 3D — Gestão de Soluções e Fabricações
 
-CRM operacional da ERS 3D Soluções e Fabricações. Este README cobre a **Fundação** (Sprint 0 + Sprint 1 do backlog) — setup do projeto, banco, autenticação e permissões por ação — e o módulo **Clientes** (Sprint 2). Os demais módulos de negócio (Kanban, Calculadora, Produção, Qualidade, Estoque, Financeiro) entram nos sprints seguintes, conforme a Etapa 5 do planejamento.
+CRM operacional da ERS 3D Soluções e Fabricações. Este README cobre a **Fundação** (Sprint 0 + Sprint 1 do backlog) — setup do projeto, banco, autenticação e permissões por ação —, o módulo **Clientes** (Sprint 2) e o **Kanban CRM** (Sprint 3). Os demais módulos de negócio (Calculadora, Produção, Qualidade, Estoque, Financeiro) entram nos sprints seguintes, conforme a Etapa 5 do planejamento.
 
 Documentos de planejamento completos (visão, arquitetura, personas, segurança, design system, backlog): ver pasta `planejamento/`.
 
@@ -33,7 +33,7 @@ Edite `.env`:
 Aplique as migrations e rode o seed:
 
 ```bash
-npx prisma migrate deploy   # aplica prisma/migrations/20260713000000_init
+npx prisma migrate deploy   # aplica todas as migrations em prisma/migrations/
 npm run db:seed             # cria permissões, perfis (ROOT/Admin/Contador) e o usuário ROOT
 ```
 
@@ -72,7 +72,9 @@ src/
   modules/              camada de domínio — uma pasta por módulo de negócio
     auth/                autenticação, usuários, permissões (RBAC por ação)
     audit/               interceptor único de auditoria (audit_logs)
-    customers/ crm/ quotes/ jobs/ filaments/ inventory/ quality/
+    customers/           clientes PF/PJ (Sprint 2)
+    crm/                 oportunidades e Kanban (Sprint 3)
+    quotes/ jobs/ filaments/ inventory/ quality/
     deliveries/ finance/ reports/ catalogs/ files/ notifications/ settings/
                           (pastas já criadas, populadas sprint a sprint)
   lib/                   infraestrutura compartilhada (Prisma client, rate limit)
@@ -106,9 +108,26 @@ A checagem de acesso nunca é feita pelo nome do perfil (`role === "admin"`). To
 - Página 360° do cliente (`/clientes/[id]`) — esqueleto: dados cadastrais completos hoje, linha do tempo consolidada (interações, orçamentos, produção, financeiro) entra conforme os módulos correspondentes forem implementados
 - Toda escrita (`customers.manage`) passa por `requirePermission` e é registrada em `audit_logs`
 
+## O que já funciona (CRM Kanban — Sprint 3)
+
+- Quadro Kanban em `/crm` com as 6 etapas do fluxo (Proposta → Negociação → Desenvolvimento → Teste de Qualidade → Entrega → Concluído), drag-and-drop real com `@dnd-kit/core` (+ botão de avanço rápido no card como alternativa ao arrastar)
+- Toda movimentação de etapa é validada no backend (`src/modules/crm/services/opportunities.ts`, função `validateTransition`) — pular etapa (ex.: Proposta → Entrega direto) é rejeitado com erro claro (CRM-2); a única transição para trás permitida é a reprovação de qualidade (Qualidade → Desenvolvimento), que exige motivo obrigatório
+- Histórico completo de movimentação em `opportunity_stage_history` (etapa anterior, nova etapa, quem moveu, quando, observação) — base do "dias na etapa" exibido em cada card (CRM-3)
+- Indicador visual de prazo sempre com cor **e** texto (nunca só cor): atrasado (`danger`), próximo do prazo/vence hoje (`warning`), no prazo (`success`), sem prazo definido (`neutral`)
+- Filtros do quadro por responsável, cliente, prioridade e atrasados (CRM-4)
+- Formulário de nova oportunidade vinculado a um cliente existente (reaproveita `listCustomers` do módulo `customers`)
+- Toda escrita (`crm.manage`) passa por `requirePermission` e é registrada em `audit_logs`
+
+**Fora de escopo deste sprint, deliberadamente** (ver `planejamento/05-backlog-sprints-dod.html` §01 e os comentários `TODO` em `src/modules/crm/services/opportunities.ts`):
+- `crm_cycles` (ciclo mensal / CRM-5, fechamento com cards em aberto) — Sprint 5, junto do módulo de orçamento
+- Pré-condições de transição que dependem de módulos futuros (orçamento aprovado, produção concluída, qualidade aprovada, entrega registrada, financeiro conhecido) não são simuladas — cada uma está documentada como `TODO` inline no service, apontando o sprint que vai conectá-la de verdade. `Negociação → Desenvolvimento` hoje só exige valor negociado e prazo preenchidos (campos manuais do card), não "orçamento aprovado" (isso é Sprint 5)
+- Granularidade de permissão por perfil/transição (Comercial só move Proposta↔Negociação, Técnico só move Desenvolvimento↔Qualidade↔Entrega, retrocesso manual fora do fluxo só Admin — `planejamento/02-personas-jornadas-historias.html` §06) — hoje é uma permissão única `crm.manage`, porque os perfis "Comercial" e "Técnico" ainda não existem no seed
+
 ## Riscos e limitações conhecidas (documentados, não escondidos)
 
 - **Rate limiting é em memória de processo** (`src/lib/rate-limit.ts`) — decisão deliberada para não depender de Redis nesta escala. Não sobrevive a restart/deploy e não é compartilhado entre instâncias. Documentado na Etapa 1 (arquitetura) como trade-off aceito; revisar se a aplicação escalar horizontalmente.
-- **Testes automatizados atuais usam Prisma mockado**, não um Postgres real — não havia banco disponível no ambiente em que a Fundação foi implementada, e essa mesma limitação se manteve no Sprint 2 (módulo Clientes). Cobre a lógica de negócio (regra do último ROOT, guarda de permissão, formato da auditoria, validação de CPF/CNPJ, detecção de duplicidade por e-mail/telefone/documento) mas não valida constraints reais do banco (índices, cascatas, comportamento de `String[]`/arrays no Postgres). A migration de clientes (`prisma/migrations/20260713010000_add_customers`) também foi escrita manualmente com `prisma migrate diff --from-empty --to-schema-datamodel --script`, sem `migrate dev` contra um banco real. Recomendado rodar `prisma migrate deploy` + um teste de integração manual contra um Neon de desenvolvimento antes do primeiro deploy real.
+- **Testes automatizados atuais usam Prisma mockado**, não um Postgres real — não havia banco disponível no ambiente em que a Fundação foi implementada, e essa mesma limitação se manteve no Sprint 2 (Clientes) e no Sprint 3 (CRM Kanban). Cobre a lógica de negócio (regra do último ROOT, guarda de permissão, formato da auditoria, validação de CPF/CNPJ, detecção de duplicidade, validação de transição de etapa do Kanban e histórico) mas não valida constraints reais do banco (índices, cascatas, comportamento de `String[]`/`Decimal`/enums no Postgres). As migrations de clientes e de oportunidades (`prisma/migrations/20260713010000_add_customers`, `prisma/migrations/20260713020000_add_opportunities`) também foram escritas manualmente com `prisma migrate diff --from-empty --to-schema-datamodel --script`, sem `migrate dev` contra um banco real. Recomendado rodar `prisma migrate deploy` + um teste de integração manual contra um Neon de desenvolvimento antes do primeiro deploy real.
 - **Bloqueio de usuário por um form simples**: se a regra do último ROOT for violada via um clique (condição rara — só ocorre se o admin tentar bloquear o único ROOT), o erro aparece como página de erro genérica do Next.js, não como mensagem inline. A regra é respeitada corretamente (a operação é bloqueada), mas a UX desse caso específico pode melhorar depois.
+- **Motivo da reprovação de qualidade via `window.prompt`**: no Kanban, quando um card é movido de Qualidade para Desenvolvimento (reprovação), a UI pede o motivo obrigatório com `window.prompt` em vez de um modal desenhado — funcional e sempre bloqueia a movimentação sem motivo, mas não segue o design system. Melhoria de UX pendente, não bloqueante.
+- **Atualização otimista no drag-and-drop**: o card muda de coluna imediatamente ao soltar, antes da confirmação do servidor; se o backend rejeitar a transição (pré-condição não cumprida), o card volta para a coluna original e o erro aparece acima do quadro — não há um "toast" de erro dedicado ainda.
 - **`package.json#prisma` está deprecated** a partir do Prisma 7 (aviso, não erro). Migrar para `prisma.config.ts` é um follow-up de baixo risco, não bloqueante.

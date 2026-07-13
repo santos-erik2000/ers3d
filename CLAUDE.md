@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ERS 3D — Gestão de Soluções e Fabricações: a CRM for ERS 3D Soluções e Fabricações covering commercial pipeline (Kanban), 3D printing quotes/pricing, production, quality control, deliveries, filament and parts inventory, and finance. Full product planning (vision, personas, security, design system, backlog) lives in `planejamento/` as five linked HTML documents — read those before making product decisions; this file only covers how to work in the codebase.
 
-Currently implemented: the Fundação (auth, RBAC-by-action, audit trail, app shell) and the Clientes module (Sprint 2 — PF/PJ registration, duplicate detection, 360° page skeleton). Everything else (CRM Kanban, 3D pricing calculator, production, quality, inventory, finance) is scaffolded as empty module folders awaiting their sprint.
+Currently implemented: the Fundação (auth, RBAC-by-action, audit trail, app shell), the Clientes module (Sprint 2 — PF/PJ registration, duplicate detection, 360° page skeleton), and the CRM Kanban (Sprint 3 — 6-stage board with `dnd-kit` drag-and-drop, backend-validated stage transitions, `opportunity_stage_history`, filters). Everything else (3D pricing calculator, production, quality, inventory, finance) is scaffolded as empty module folders awaiting their sprint. `quotes` (orçamento) and `crm_cycles` (ciclo mensal) intentionally don't exist yet — see the TODOs in `src/modules/crm/services/opportunities.ts`.
 
 ## Commands
 

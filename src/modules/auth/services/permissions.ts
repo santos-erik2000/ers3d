@@ -13,6 +13,16 @@ export const PERMISSIONS = {
   FINANCE_READ: "finance.read",
   SETTINGS_MANAGE: "settings.manage",
   CUSTOMERS_MANAGE: "customers.manage",
+  // Criar oportunidades e mover cards do Kanban (Sprint 3 — épico E3).
+  // TODO (planejamento/02-personas-jornadas-historias.html §06): a granularidade
+  // por transição/perfil (Comercial só move Proposta↔Negociação, Técnico só move
+  // Desenvolvimento↔Qualidade↔Entrega, retrocesso manual fora do fluxo só Admin)
+  // depende dos perfis "Comercial" e "Técnico", que ainda não existem no seed
+  // (hoje só ROOT/Administrador/Contador) — quando existirem, dividir esta
+  // permissão única em ações mais finas (ex.: "crm.stage.move.comercial",
+  // "crm.stage.move.tecnico", "crm.stage.revert") em vez de checar por nome de
+  // perfil. Por enquanto, uma permissão nomeada só cobre "pode mexer no Kanban".
+  CRM_MANAGE: "crm.manage",
 } as const;
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

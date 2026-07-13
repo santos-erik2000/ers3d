@@ -14,6 +14,7 @@ async function main() {
     { slug: PERMISSIONS.FINANCE_READ, description: "Ler módulos financeiros" },
     { slug: PERMISSIONS.SETTINGS_MANAGE, description: "Alterar configurações do sistema" },
     { slug: PERMISSIONS.CUSTOMERS_MANAGE, description: "Cadastrar e editar clientes" },
+    { slug: PERMISSIONS.CRM_MANAGE, description: "Criar oportunidades e mover cards do Kanban CRM" },
   ];
 
   for (const p of permissionSeeds) {
@@ -61,6 +62,7 @@ async function main() {
     PERMISSIONS.FINANCE_READ,
     PERMISSIONS.SETTINGS_MANAGE,
     PERMISSIONS.CUSTOMERS_MANAGE,
+    PERMISSIONS.CRM_MANAGE,
   ];
   await prisma.rolePermission.deleteMany({ where: { roleId: admin.id } });
   await prisma.rolePermission.createMany({

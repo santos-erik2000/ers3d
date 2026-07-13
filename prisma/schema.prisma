@@ -32,6 +32,10 @@ model User {
   auditLogs AuditLog[]
   // Clientes onde este usuário é o responsável comercial (Sprint 2 — customers.ownerId).
   customers Customer[]
+  // Oportunidades onde este usuário é o responsável comercial (Sprint 3 — opportunities.ownerId).
+  ownedOpportunities    Opportunity[]              @relation("OpportunityOwner")
+  // Movimentações de etapa do Kanban feitas por este usuário (Sprint 3).
+  opportunityStageMoves OpportunityStageHistory[]  @relation("OpportunityStageMover")
 
   @@map("users")
 }
@@ -172,6 +176,8 @@ model Customer {
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
+  opportunities Opportunity[]
+
   @@index([email])
   @@index([document])
   @@index([phone])
@@ -179,4 +185,104 @@ model Customer {
   @@index([ownerId])
   @@index([companyId])
   @@map("customers")
+}
+
+// ---------------------------------------------------------------------------
+// Kanban CRM (Etapa 5, Sprint 3 — épico E3, histórias CRM-1..CRM-5).
+// Fluxo e pré-condições de transição: planejamento/01-visao-arquitetura.html
+// seções 08/09. Quem pode mover cada transição por perfil:
+// planejamento/02-personas-jornadas-historias.html seção 06.
+//
+// Sequenciamento deliberado (planejamento/05-backlog-sprints-dod.html seção 01):
+// `quotes` (orçamento) e `crm_cycles` (ciclo mensal) só existem a partir do
+// Sprint 5 — por isso NÃO há tabela `crm_cycles` nem `quote_id` aqui ainda, e
+// as pré-condições de transição que dependem desses módulos futuros (orçamento
+// aprovado, produção concluída, qualidade aprovada, entrega registrada) são
+// validadas apenas pelo que já existe hoje no domínio, com o restante marcado
+// como TODO em src/modules/crm/services/opportunities.ts — nunca uma checagem
+// falsa, nunca um bloqueio inventado.
+// ---------------------------------------------------------------------------
+
+enum OpportunityStage {
+  PROPOSTA
+  NEGOCIACAO
+  DESENVOLVIMENTO
+  QUALIDADE
+  ENTREGA
+  CONCLUIDO
+}
+
+enum OpportunityPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// Situação financeira simplificada — o financeiro de verdade (accounts_receivable,
+// parcelas, baixa manual) é Sprint 9. Por ora só um rótulo informativo no card.
+enum OpportunityFinancialStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+model Opportunity {
+  id    String @id @default(uuid())
+  // Nome do projeto/oportunidade (ex.: "Suporte de câmera - Cliente X").
+  title String
+
+  // Valor negociado. Decimal desde já (nunca float em nenhuma camada, mesmo
+  // antes da calculadora/orçamento existirem — regra do CLAUDE.md) — só é
+  // preenchido de verdade a partir do Sprint 4/5 (calculadora e orçamento);
+  // até lá é um valor informado manualmente pelo usuário no card.
+  value Decimal @default(0) @db.Decimal(12, 2)
+
+  stage          OpportunityStage            @default(PROPOSTA)
+  priority       OpportunityPriority         @default(MEDIUM)
+  financialStatus OpportunityFinancialStatus @default(PENDING)
+
+  deadlineAt DateTime?
+  tags       String[]  @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  ownerId String?
+  owner   User?   @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  stageHistory OpportunityStageHistory[]
+
+  @@index([customerId])
+  @@index([ownerId])
+  @@index([stage])
+  @@index([deadlineAt])
+  @@map("opportunities")
+}
+
+// Trilha de movimentação de etapa do Kanban — base do "dias na etapa" exibido
+// no card (CRM-3) e da auditoria de quem moveu o quê. `fromStage` nulo marca a
+// entrada inicial da oportunidade (criada direto em PROPOSTA). `note` é
+// opcional na maioria das transições e obrigatória em algumas (ex.: reprovação
+// de qualidade → volta para Desenvolvimento) — a obrigatoriedade é decidida em
+// src/modules/crm/services/opportunities.ts, não no schema.
+model OpportunityStageHistory {
+  id        String            @id @default(uuid())
+  fromStage OpportunityStage?
+  toStage   OpportunityStage
+  note      String?
+  movedAt   DateTime          @default(now())
+
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation("OpportunityStageMover", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([opportunityId])
+  @@index([userId])
+  @@index([movedAt])
+  @@map("opportunity_stage_history")
 }

@@ -11,7 +11,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", enabled: true },
-  { href: "/crm", label: "CRM (Kanban)", enabled: false },
+  { href: "/crm", label: "CRM (Kanban)", enabled: true },
   { href: "/clientes", label: "Clientes", enabled: true },
   { href: "/calculadora", label: "Calculadora 3D", enabled: false },
   { href: "/estoque", label: "Estoque", enabled: false },
