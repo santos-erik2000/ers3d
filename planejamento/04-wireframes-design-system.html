@@ -1,0 +1,337 @@
+<title>ERS 3D — Wireframes &amp; Design System</title>
+<style>
+  :root {
+    --bg: #eef1f7; --surface: #ffffff; --surface-alt: #e4e9f3; --border: #d7deea; --border-strong: #b9c4d8;
+    --text: #1a2333; --text-muted: #57647a; --text-faint: #7c879b;
+    --accent: #2454e0; --accent-strong: #17348c; --accent-soft: #e5ecff;
+    --success: #12805c; --success-soft: #e1f4ec; --warning: #9a6300; --warning-soft: #fbeed2;
+    --danger: #b4293a; --danger-soft: #fbe4e6; --dev: #6a3fd6; --dev-soft: #ede6fb;
+    --neutral: #5c6779; --neutral-soft: #e9ecf2;
+    --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+    --sidebar-w: 280px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f141d; --surface: #171e2b; --surface-alt: #1c2434; --border: #2a3448; --border-strong: #38455c;
+      --text: #e8ecf4; --text-muted: #a3aec2; --text-faint: #7c879b;
+      --accent: #6f9bff; --accent-strong: #a9c2ff; --accent-soft: #1c2c55;
+      --success: #4fcf9d; --success-soft: #133329; --warning: #e3ac3f; --warning-soft: #3a2c0e;
+      --danger: #ef7a86; --danger-soft: #3a1a1f; --dev: #b49bff; --dev-soft: #2a2350;
+      --neutral: #a3aec2; --neutral-soft: #232c3d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141d; --surface: #171e2b; --surface-alt: #1c2434; --border: #2a3448; --border-strong: #38455c;
+    --text: #e8ecf4; --text-muted: #a3aec2; --text-faint: #7c879b;
+    --accent: #6f9bff; --accent-strong: #a9c2ff; --accent-soft: #1c2c55;
+    --success: #4fcf9d; --success-soft: #133329; --warning: #e3ac3f; --warning-soft: #3a2c0e;
+    --danger: #ef7a86; --danger-soft: #3a1a1f; --dev: #b49bff; --dev-soft: #2a2350;
+    --neutral: #a3aec2; --neutral-soft: #232c3d;
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f7; --surface: #ffffff; --surface-alt: #e4e9f3; --border: #d7deea; --border-strong: #b9c4d8;
+    --text: #1a2333; --text-muted: #57647a; --text-faint: #7c879b;
+    --accent: #2454e0; --accent-strong: #17348c; --accent-soft: #e5ecff;
+    --success: #12805c; --success-soft: #e1f4ec; --warning: #9a6300; --warning-soft: #fbeed2;
+    --danger: #b4293a; --danger-soft: #fbe4e6; --dev: #6a3fd6; --dev-soft: #ede6fb;
+    --neutral: #5c6779; --neutral-soft: #e9ecf2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); }
+  ::selection { background: var(--accent-soft); }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: var(--sidebar-w); flex: 0 0 var(--sidebar-w); background: linear-gradient(180deg, var(--accent-strong), var(--accent) 78%); color: #eef3ff; padding: 32px 24px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .sidebar .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #c3d3ff; margin: 0 0 6px; }
+  .sidebar h1 { font-family: var(--font-display); font-size: 26px; line-height: 1.2; margin: 0 0 4px; font-weight: 600; text-wrap: balance; }
+  .sidebar .subtitle { font-size: 13.5px; color: #d3ddff; margin: 0 0 20px; }
+  .sidebar .backlink { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #dbe4ff; text-decoration: none; margin-bottom: 8px; padding: 6px 10px; border: 1px solid rgba(255,255,255,0.25); border-radius: 8px; }
+  .sidebar .backlink:hover { background: rgba(255,255,255,0.12); }
+  .sidebar nav { display: flex; flex-direction: column; gap: 2px; margin-top: 16px; }
+  .sidebar nav a { color: #dbe4ff; text-decoration: none; font-size: 13.5px; padding: 7px 10px; border-radius: 7px; display: flex; gap: 9px; }
+  .sidebar nav a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .sidebar nav a .n { font-variant-numeric: tabular-nums; color: #b9c9ff; font-size: 12px; width: 18px; flex: none; }
+  .sidebar .meta { margin-top: 32px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 12px; color: #c3d3ff; }
+  .sidebar .meta div { margin-bottom: 4px; }
+  .main { flex: 1; min-width: 0; padding: 56px 48px 120px; }
+  .content { max-width: 920px; margin: 0 auto; }
+  .doc-header { margin-bottom: 48px; }
+  .doc-header .kicker { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin: 0 0 10px; }
+  .doc-header h2 { font-family: var(--font-display); font-size: 34px; margin: 0 0 10px; text-wrap: balance; font-weight: 600; }
+  .doc-header p { color: var(--text-muted); font-size: 16px; max-width: 64ch; margin: 0; }
+  section { margin-bottom: 56px; scroll-margin-top: 24px; }
+  section > h3 { font-family: var(--font-display); font-size: 23px; font-weight: 600; margin: 0 0 6px; display: flex; align-items: baseline; gap: 10px; }
+  section > h3 .idx { color: var(--text-faint); font-size: 15px; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+  section > .lede { color: var(--text-muted); margin: 0 0 20px; max-width: 68ch; }
+  h4 { font-size: 15px; margin: 26px 0 10px; color: var(--text); }
+  p { max-width: 70ch; }
+  ul, ol { padding-left: 22px; max-width: 68ch; }
+  li { margin-bottom: 6px; }
+  .callout { border-left: 3px solid var(--border-strong); background: var(--surface-alt); border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 10px 0; }
+  .callout p { margin: 0; }
+  .callout .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px; }
+  .callout.pending { border-left-color: var(--warning); background: var(--warning-soft); }
+  .callout.pending .label { color: var(--warning); }
+
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 12px; margin: 16px 0; }
+  .swatch { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
+  .swatch .fill { height: 56px; }
+  .swatch .info { padding: 8px 10px; }
+  .swatch .name { font-size: 12.5px; font-weight: 600; }
+  .swatch .hex { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); }
+
+  .type-sample { border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 16px 20px; margin: 8px 0; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+  .type-sample .txt { font-family: var(--font-body); }
+  .type-sample .meta { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-faint); white-space: nowrap; }
+
+  .scale-row { display: flex; align-items: flex-end; gap: 10px; margin: 14px 0; flex-wrap: wrap; }
+  .scale-chip { background: var(--accent-soft); border-radius: 6px; display: flex; align-items: flex-end; justify-content: center; font-family: var(--font-mono); font-size: 10.5px; color: var(--accent-strong); padding-bottom: 3px; }
+
+  .radius-row, .shadow-row { display: flex; gap: 16px; margin: 14px 0; flex-wrap: wrap; }
+  .r-chip { width: 84px; height: 60px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+  .s-chip { width: 120px; height: 64px; background: var(--surface); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+  .shadow-sm { box-shadow: 0 1px 2px rgba(20,30,60,0.08), 0 1px 1px rgba(20,30,60,0.04); }
+  .shadow-md { box-shadow: 0 6px 16px rgba(20,30,60,0.12), 0 2px 4px rgba(20,30,60,0.06); }
+
+  .status-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px; }
+  .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .status-pill.principal { background: var(--accent-soft); color: var(--accent-strong); }
+  .status-pill.principal .dot { background: var(--accent); }
+  .status-pill.sucesso { background: var(--success-soft); color: var(--success); }
+  .status-pill.sucesso .dot { background: var(--success); }
+  .status-pill.atencao { background: var(--warning-soft); color: var(--warning); }
+  .status-pill.atencao .dot { background: var(--warning); }
+  .status-pill.atraso { background: var(--danger-soft); color: var(--danger); }
+  .status-pill.atraso .dot { background: var(--danger); }
+  .status-pill.neutro { background: var(--neutral-soft); color: var(--neutral); }
+  .status-pill.neutro .dot { background: var(--neutral); }
+  .status-pill.dev { background: var(--dev-soft); color: var(--dev); }
+  .status-pill.dev .dot { background: var(--dev); }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; background: var(--surface); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--surface-alt); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td code, p code, li code { font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-alt); padding: 1px 5px; border-radius: 5px; }
+
+  pre.diagram { font-family: var(--font-mono); font-size: 11.5px; line-height: 1.55; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; overflow-x: auto; color: var(--text); white-space: pre; }
+  .wire-caption { font-size: 12.5px; color: var(--text-faint); margin: 6px 0 18px; }
+
+  .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap: 12px; margin-top: 14px; }
+  .comp-card { border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 14px 16px; }
+  .comp-card h5 { margin: 0 0 4px; font-size: 13.5px; }
+  .comp-card p { margin: 0; font-size: 12.5px; color: var(--text-muted); }
+
+  footer.doc-footer { color: var(--text-faint); font-size: 12.5px; margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border); }
+  @media (max-width: 880px) {
+    .layout { flex-direction: column; }
+    .sidebar { position: relative; width: 100%; flex: none; height: auto; }
+    .main { padding: 32px 20px 80px; }
+  }
+</style>
+
+<div class="layout">
+  <aside class="sidebar">
+    <p class="eyebrow">Blueprint do produto · Etapa 4</p>
+    <h1>ERS 3D</h1>
+    <p class="subtitle">Wireframes &amp; Design System</p>
+    <a class="backlink" href="https://claude.ai/code/artifact/3d3188e3-b978-431c-97d2-4f0fee358c75" target="_blank" rel="noopener">← Etapa 1 — Visão &amp; Arquitetura</a>
+    <a class="backlink" href="https://claude.ai/code/artifact/9cfe63b8-38ff-4a25-b106-79bbce441b25" target="_blank" rel="noopener">← Etapa 2 — Personas &amp; Histórias</a>
+    <a class="backlink" href="https://claude.ai/code/artifact/d8c7620f-468f-4153-b29b-bf8a2b01bcdd" target="_blank" rel="noopener">← Etapa 3 — Segurança &amp; Monitoramento</a>
+    <nav>
+      <a href="#assuncao"><span class="n">·</span> Nota sobre a referência</a>
+      <a href="#cor"><span class="n">01</span> Cor</a>
+      <a href="#tipografia"><span class="n">02</span> Tipografia</a>
+      <a href="#espacamento"><span class="n">03</span> Espaçamento, raio, sombra</a>
+      <a href="#status"><span class="n">04</span> Cores de status</a>
+      <a href="#componentes"><span class="n">05</span> Componentes principais</a>
+      <a href="#wireframes"><span class="n">06</span> Wireframes textuais</a>
+    </nav>
+    <div class="meta">
+      <div>Equipe: Designer · Dev</div>
+      <div>13 jul 2026 — v0.1</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="content">
+      <div class="doc-header">
+        <p class="kicker">Documento de planejamento — não é código</p>
+        <h2>Design system e telas, em baixa fidelidade</h2>
+        <p>Etapa 4: tokens visuais e a estrutura das telas principais, o suficiente para validar layout e hierarquia de informação antes de qualquer implementação visual definitiva.</p>
+      </div>
+
+      <div class="callout pending" id="assuncao">
+        <span class="label">Premissa assumida — a confirmar</span>
+        <p>A imagem de referência mencionada no briefing original ainda não chegou a esta conversa. Os tokens abaixo seguem fielmente a descrição em texto (menu lateral azul, fundo claro, cards brancos/cinza-azulados, tipografia moderna, bordas arredondadas, visual limpo e profissional). Quando a imagem chegar, esta seção é a que mais provavelmente muda — cor exata, peso tipográfico e estilo de ícone especialmente.</p>
+      </div>
+
+      <section id="cor">
+        <h3><span class="idx">01</span> Cor</h3>
+        <p class="lede">Paleta única para produto e documentação — a mesma usada nas Etapas 1–3, para o time já reconhecer as cores quando a interface real existir.</p>
+        <div class="swatches">
+          <div class="swatch"><div class="fill" style="background:#2454e0"></div><div class="info"><div class="name">Azul principal</div><div class="hex">#2454E0</div></div></div>
+          <div class="swatch"><div class="fill" style="background:#17348c"></div><div class="info"><div class="name">Azul escuro (sidebar)</div><div class="hex">#17348C</div></div></div>
+          <div class="swatch"><div class="fill" style="background:#eef1f7"></div><div class="info"><div class="name">Fundo</div><div class="hex">#EEF1F7</div></div></div>
+          <div class="swatch"><div class="fill" style="background:#ffffff; border-bottom:1px solid #d7deea"></div><div class="info"><div class="name">Superfície (card)</div><div class="hex">#FFFFFF</div></div></div>
+          <div class="swatch"><div class="fill" style="background:#e4e9f3"></div><div class="info"><div class="name">Superfície alt.</div><div class="hex">#E4E9F3</div></div></div>
+          <div class="swatch"><div class="fill" style="background:#12805c"></div><div class="info"><div class="name">Sucesso</div><div class="hex">#12805C</div></div></div>
+          <div class="swatch"><div class="fill" style="background:#9a6300"></div><div class="info"><div class="name">Atenção</div><div class="hex">#9A6300</div></div></div>
+          <div class="swatch"><div class="fill" style="background:#b4293a"></div><div class="info"><div class="name">Atraso / Erro</div><div class="hex">#B4293A</div></div></div>
+          <div class="swatch"><div class="fill" style="background:#6a3fd6"></div><div class="info"><div class="name">Desenvolvimento</div><div class="hex">#6A3FD6</div></div></div>
+          <div class="swatch"><div class="fill" style="background:#5c6779"></div><div class="info"><div class="name">Neutro</div><div class="hex">#5C6779</div></div></div>
+        </div>
+        <p style="font-size:13.5px; color:var(--text-muted)">Ambos os temas (claro/escuro) já estão especificados nos tokens — a interface deve funcionar em modo escuro desde o início, não como adição posterior.</p>
+      </section>
+
+      <section id="tipografia">
+        <h3><span class="idx">02</span> Tipografia</h3>
+        <p class="lede">Diferente destes documentos de planejamento (que usam serifa no título por tratamento editorial), a interface do produto usa <strong>apenas sans-serif</strong> — é uma ferramenta operacional, escaneada rapidamente, não lida como texto corrido. Pilha de sistema por padrão (sem dependência de fonte externa); um logotipo/fonte de marca pode ser adicionado depois sem afetar esta estrutura.</p>
+        <div class="type-sample"><span class="txt" style="font-size:28px; font-weight:700;">Título de página</span><span class="meta">28/36 · 700</span></div>
+        <div class="type-sample"><span class="txt" style="font-size:20px; font-weight:600;">Título de seção / card</span><span class="meta">20/28 · 600</span></div>
+        <div class="type-sample"><span class="txt" style="font-size:15px; font-weight:600;">Rótulo de KPI</span><span class="meta">15/22 · 600</span></div>
+        <div class="type-sample"><span class="txt" style="font-size:14px; font-weight:400;">Texto de corpo e tabela</span><span class="meta">14/20 · 400</span></div>
+        <div class="type-sample"><span class="txt" style="font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.04em;">Rótulo auxiliar</span><span class="meta">12/16 · 500 · caps</span></div>
+        <div class="type-sample"><span class="txt" style="font-size:24px; font-weight:700; font-variant-numeric: tabular-nums;">R$ 12.480,00</span><span class="meta">valores numéricos: tabular-nums sempre</span></div>
+      </section>
+
+      <section id="espacamento">
+        <h3><span class="idx">03</span> Espaçamento, raio, sombra</h3>
+        <h4>Escala de espaçamento (px)</h4>
+        <div class="scale-row">
+          <div class="scale-chip" style="width:4px; height:16px;">4</div>
+          <div class="scale-chip" style="width:8px; height:16px;">8</div>
+          <div class="scale-chip" style="width:12px; height:16px;">12</div>
+          <div class="scale-chip" style="width:16px; height:16px;">16</div>
+          <div class="scale-chip" style="width:24px; height:16px;">24</div>
+          <div class="scale-chip" style="width:32px; height:16px;">32</div>
+          <div class="scale-chip" style="width:48px; height:16px;">48</div>
+          <div class="scale-chip" style="width:64px; height:16px;">64</div>
+        </div>
+        <h4>Raio de borda</h4>
+        <div class="radius-row">
+          <div class="r-chip" style="border-radius:6px;">sm · 6px<br>inputs</div>
+          <div class="r-chip" style="border-radius:10px;">md · 10px<br>tabelas</div>
+          <div class="r-chip" style="border-radius:14px;">lg · 14px<br>cards/modais</div>
+          <div class="r-chip" style="border-radius:999px;">full<br>badges</div>
+        </div>
+        <h4>Sombra (uso raro, só para elevação real)</h4>
+        <div class="shadow-row">
+          <div class="s-chip shadow-sm">sm — card em repouso</div>
+          <div class="s-chip shadow-md">md — dropdown/modal</div>
+        </div>
+      </section>
+
+      <section id="status">
+        <h3><span class="idx">04</span> Cores de status</h3>
+        <p class="lede">Nunca só cor — sempre texto ou ícone junto, por acessibilidade (briefing original, seção 22).</p>
+        <div class="status-row">
+          <span class="status-pill principal"><span class="dot"></span> Em andamento</span>
+          <span class="status-pill sucesso"><span class="dot"></span> Concluído</span>
+          <span class="status-pill atencao"><span class="dot"></span> Próximo do prazo</span>
+          <span class="status-pill atraso"><span class="dot"></span> Atrasado</span>
+          <span class="status-pill dev"><span class="dot"></span> Em desenvolvimento</span>
+          <span class="status-pill neutro"><span class="dot"></span> Neutro / rascunho</span>
+        </div>
+      </section>
+
+      <section id="componentes">
+        <h3><span class="idx">05</span> Componentes principais</h3>
+        <div class="comp-grid">
+          <div class="comp-card"><h5>Sidebar</h5><p>Ícone + rótulo, item ativo com fundo azul-claro e barra lateral de 3px; colapsável em tablet.</p></div>
+          <div class="comp-card"><h5>Header</h5><p>Breadcrumb à esquerda, busca central, notificações + avatar à direita.</p></div>
+          <div class="comp-card"><h5>KPI card</h5><p>Rótulo, valor grande (tabular-nums), variação vs. período anterior, ícone semântico discreto.</p></div>
+          <div class="comp-card"><h5>Tabela de dados</h5><p>Cabeçalho fixo ao rolar, ação em hover na linha, paginação simples, ordenação por coluna.</p></div>
+          <div class="comp-card"><h5>Kanban card</h5><p>Cliente/empresa, valor, avatar do responsável, prazo com status-pill, tags, indicador de dias na etapa.</p></div>
+          <div class="comp-card"><h5>Formulário</h5><p>Rótulo acima do campo, texto de ajuda abaixo, erro em vermelho com ícone — nunca só a borda muda de cor.</p></div>
+          <div class="comp-card"><h5>Currency input</h5><p>Prefixo R$ fixo, sempre 2 casas decimais, alinhado à direita, tabular-nums.</p></div>
+          <div class="comp-card"><h5>Percentage input</h5><p>Sufixo %, aceita "20" e converte para 0,20 internamente — nunca pede o decimal do usuário.</p></div>
+          <div class="comp-card"><h5>File uploader</h5><p>Área de arrastar-e-soltar + lista com ícone por tipo de arquivo (STL/STEP/PDF/imagem) e progresso.</p></div>
+          <div class="comp-card"><h5>Modal</h5><p>Largura máx. 560px, título + corpo + ações no rodapé (ação primária à direita).</p></div>
+          <div class="comp-card"><h5>Drawer</h5><p>Painel lateral para ver detalhe rápido sem sair da lista/quadro atual.</p></div>
+          <div class="comp-card"><h5>Toast</h5><p>Canto superior direito, some sozinho em ~4s, cor semântica conforme o resultado.</p></div>
+          <div class="comp-card"><h5>Timeline</h5><p>Histórico vertical com ponto + linha — usado na página 360° do cliente e no card do Kanban.</p></div>
+          <div class="comp-card"><h5>Empty state</h5><p>Ícone leve, uma frase objetiva, um call-to-action — nunca uma tela em branco sem explicação.</p></div>
+          <div class="comp-card"><h5>Skeleton</h5><p>Placeholder cinza pulsante no formato real do conteúdo, nunca um spinner genérico central.</p></div>
+          <div class="comp-card"><h5>Confirm dialog</h5><p>Exige clique consciente para ações sensíveis (excluir, reprovar, fechar ciclo) — nunca some sozinho.</p></div>
+          <div class="comp-card"><h5>Command palette</h5><p>Atalho de teclado para navegação/ação rápida — item de conveniência, não bloqueia nada se não for usado.</p></div>
+        </div>
+      </section>
+
+      <section id="wireframes">
+        <h3><span class="idx">06</span> Wireframes textuais</h3>
+        <p class="lede">Baixa fidelidade — zonas e hierarquia, não pixels. As três telas mais centrais em diagrama de caixas; as demais, em tabela de especificação.</p>
+
+        <h4>Dashboard</h4>
+        <pre class="diagram">┌ Sidebar ┐  Header — busca · notificações · avatar
+│ ERS 3D  │  Dashboard                    [Período ▾] [Cliente ▾] [Responsável ▾]
+│ ▣ Dash  │ ┌────┐┌────┐┌────┐┌────┐┌────┐┌────┐
+│ ▢ CRM   │ │Fat.││Rec.││Pend││Lucr││Ativ││Atra│  ← KPI cards, linha única
+│ ▢ Client│ └────┘└────┘└────┘└────┘└────┘└────┘
+│ ▢ Calc  │ ┌─ Evolução mensal (gráfico) ──┐ ┌─ Estoque baixo ─────┐
+│ ▢ Estoq │ │                               │ │ • PLA Branco  120g │
+│ ▢ Financ│ │                               │ │ • PETG Preto   80g │
+│ ▢ Relat │ └───────────────────────────────┘ └─────────────────────┘
+│ ▢ Config│ ┌─ Próximos prazos ───────────────────────────────────────┐
+└─────────┘ │ Cliente · Projeto · Prazo · Responsável · Status         │
+            └───────────────────────────────────────────────────────┘</pre>
+        <p class="wire-caption">KPIs sempre visíveis sem rolar (above the fold) em desktop; em mobile, viram um carrossel horizontal.</p>
+
+        <h4>Kanban CRM</h4>
+        <pre class="diagram">┌ Sidebar ┐  Kanban CRM · Ciclo Julho/2026 ▾                    [+ Nova oportunidade]
+│         │  [Responsável ▾] [Cliente ▾] [Prioridade ▾] [☐ Só atrasados]
+│         │ ┌─Proposta(4)─┬─Negociação(3)─┬─Desenvolv.(6)─┬─Qualidade(2)─┬─Entrega(1)─┬─Concl.(12)─┐
+│         │ │ ┌─────────┐ │ ┌───────────┐ │ ┌───────────┐ │             │            │            │
+│         │ │ │ Cliente │ │ │ Cliente   │ │ │ Cliente    │ │             │            │            │
+│         │ │ │ Empresa │ │ │ R$ 1.200  │ │ │ R$ 3.400   │ │             │            │            │
+│         │ │ │ 3 dias  │ │ │ ● atrasado│ │ │ 5 dias ● ok│ │             │            │            │
+│         │ │ └─────────┘ │ └───────────┘ │ └───────────┘ │             │            │            │
+└─────────┘ └─────────────┴───────────────┴───────────────┴─────────────┴────────────┴────────────┘</pre>
+        <p class="wire-caption">Coluna mostra contagem de cards no cabeçalho; card arrastado ganha sombra elevada + contorno azul no destino válido, e um "✕" no destino bloqueado por pré-condição.</p>
+
+        <h4>Página 360° do cliente</h4>
+        <pre class="diagram">┌ Sidebar ┐  ← Clientes · Maria Silva — Studio XP        [Editar] [+ Nova oportunidade]
+│         │  Visão geral │ Propostas │ Orçamentos │ Projetos │ Financeiro │ Arquivos
+│         │ ┌─ Dados cadastrais ────┐ ┌─ Resumo ───────────────┐
+│         │ │ PJ · CNPJ ...         │ │ Total faturado: R$ X   │
+│         │ │ contato@...           │ │ Ticket médio: R$ Y     │
+│         │ │ (xx) xxxxx-xxxx       │ │ Última compra: dd/mm   │
+│         │ └───────────────────────┘ └─────────────────────────┘
+│         │ ┌─ Linha do tempo ──────────────────────────────────────────────────┐
+│         │ │ ● 12/07 — Orçamento v2 enviado                                     │
+│         │ │ ● 08/07 — Card movido para Negociação (por Erik)                   │
+│         │ │ ● 02/07 — Cliente cadastrado                                       │
+│         │ └─────────────────────────────────────────────────────────────────┘
+└─────────┘</pre>
+
+        <h4>Demais telas</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tela</th><th>Layout principal</th><th>Elementos-chave</th><th>Estado vazio</th></tr></thead>
+            <tbody>
+              <tr><td>Login</td><td>Centralizado, sem sidebar</td><td>Logo, e-mail, senha, "esqueci minha senha"</td><td>—</td></tr>
+              <tr><td>Calculadora / Job</td><td>Formulário em etapas: filamentos → parâmetros → resultado</td><td>Seletor de filamento com saldo visível, resultado com breakdown (custo, manutenção, segurança, lucro)</td><td>"Nenhum filamento cadastrado ainda" com CTA para cadastrar</td></tr>
+              <tr><td>Orçamento &amp; Negociação</td><td>Detalhe com histórico de versões na lateral</td><td>Valor original/desconto/final, condição de pagamento, botão "Gerar PDF", linha do tempo de versões</td><td>—</td></tr>
+              <tr><td>Ordem de Produção</td><td>Detalhe com dados técnicos e contador de prazo</td><td>Impressora, responsável, horas/material estimado vs. real, status do prazo (badge)</td><td>—</td></tr>
+              <tr><td>Teste de Qualidade</td><td>Checklist configurável em lista</td><td>Item + resultado (aprovado/reprovado/ressalva), campo de evidência fotográfica</td><td>—</td></tr>
+              <tr><td>Estoque de Filamentos</td><td>Tabela com saldo e alerta visual</td><td>Barra de saldo vs. mínimo, botão "Nova movimentação", filtro por material/cor</td><td>"Nenhum filamento cadastrado" com CTA</td></tr>
+              <tr><td>Estoque de Peças</td><td>Tabela agrupada por projeto/job</td><td>Colunas disponível/reservado/vendido/descartado, ações rápidas</td><td>—</td></tr>
+              <tr><td>Entregas</td><td>Lista + detalhe de checklist de embalagem</td><td>Método, rastreio, status, checklist com itens marcáveis</td><td>—</td></tr>
+              <tr><td>Financeiro — Contas a receber</td><td>Tabela com status colorido</td><td>Status-pill (previsto/pendente/pago/vencido), botão "Dar baixa" (modal de confirmação)</td><td>"Nenhuma conta a receber neste período"</td></tr>
+              <tr><td>Usuários &amp; Permissões</td><td>Tabela de usuários + painel de permissões por ação</td><td>Toggle por permissão, não checkbox de "perfil" fixo — reflete o modelo de permissão por ação</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="doc-footer">
+        ERS 3D — Gestão de Soluções e Fabricações · Documento de planejamento, Etapa 4 · Sujeito a revisão assim que a imagem de referência for enviada.
+      </footer>
+    </div>
+  </main>
+</div>

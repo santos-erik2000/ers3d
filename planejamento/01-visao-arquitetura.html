@@ -1,0 +1,745 @@
+<title>ERS 3D — Blueprint do Produto</title>
+<style>
+  :root {
+    --bg: #eef1f7;
+    --surface: #ffffff;
+    --surface-alt: #e4e9f3;
+    --border: #d7deea;
+    --border-strong: #b9c4d8;
+    --text: #1a2333;
+    --text-muted: #57647a;
+    --text-faint: #7c879b;
+    --accent: #2454e0;
+    --accent-strong: #17348c;
+    --accent-soft: #e5ecff;
+    --success: #12805c;
+    --success-soft: #e1f4ec;
+    --warning: #9a6300;
+    --warning-soft: #fbeed2;
+    --danger: #b4293a;
+    --danger-soft: #fbe4e6;
+    --dev: #6a3fd6;
+    --dev-soft: #ede6fb;
+    --neutral: #5c6779;
+    --neutral-soft: #e9ecf2;
+    --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+    --sidebar-w: 280px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f141d;
+      --surface: #171e2b;
+      --surface-alt: #1c2434;
+      --border: #2a3448;
+      --border-strong: #38455c;
+      --text: #e8ecf4;
+      --text-muted: #a3aec2;
+      --text-faint: #7c879b;
+      --accent: #6f9bff;
+      --accent-strong: #a9c2ff;
+      --accent-soft: #1c2c55;
+      --success: #4fcf9d;
+      --success-soft: #133329;
+      --warning: #e3ac3f;
+      --warning-soft: #3a2c0e;
+      --danger: #ef7a86;
+      --danger-soft: #3a1a1f;
+      --dev: #b49bff;
+      --dev-soft: #2a2350;
+      --neutral: #a3aec2;
+      --neutral-soft: #232c3d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141d; --surface: #171e2b; --surface-alt: #1c2434; --border: #2a3448; --border-strong: #38455c;
+    --text: #e8ecf4; --text-muted: #a3aec2; --text-faint: #7c879b;
+    --accent: #6f9bff; --accent-strong: #a9c2ff; --accent-soft: #1c2c55;
+    --success: #4fcf9d; --success-soft: #133329; --warning: #e3ac3f; --warning-soft: #3a2c0e;
+    --danger: #ef7a86; --danger-soft: #3a1a1f; --dev: #b49bff; --dev-soft: #2a2350;
+    --neutral: #a3aec2; --neutral-soft: #232c3d;
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f7; --surface: #ffffff; --surface-alt: #e4e9f3; --border: #d7deea; --border-strong: #b9c4d8;
+    --text: #1a2333; --text-muted: #57647a; --text-faint: #7c879b;
+    --accent: #2454e0; --accent-strong: #17348c; --accent-soft: #e5ecff;
+    --success: #12805c; --success-soft: #e1f4ec; --warning: #9a6300; --warning-soft: #fbeed2;
+    --danger: #b4293a; --danger-soft: #fbe4e6; --dev: #6a3fd6; --dev-soft: #ede6fb;
+    --neutral: #5c6779; --neutral-soft: #e9ecf2;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  ::selection { background: var(--accent-soft); }
+
+  .layout { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: var(--sidebar-w);
+    flex: 0 0 var(--sidebar-w);
+    background: linear-gradient(180deg, var(--accent-strong), var(--accent) 78%);
+    color: #eef3ff;
+    padding: 32px 24px 32px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .sidebar .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #c3d3ff;
+    margin: 0 0 6px;
+  }
+  .sidebar h1 {
+    font-family: var(--font-display);
+    font-size: 26px;
+    line-height: 1.2;
+    margin: 0 0 4px;
+    font-weight: 600;
+    text-wrap: balance;
+  }
+  .sidebar .subtitle {
+    font-size: 13.5px;
+    color: #d3ddff;
+    margin: 0 0 28px;
+  }
+  .sidebar nav { display: flex; flex-direction: column; gap: 2px; }
+  .sidebar nav a {
+    color: #dbe4ff;
+    text-decoration: none;
+    font-size: 13.5px;
+    padding: 7px 10px;
+    border-radius: 7px;
+    display: flex;
+    gap: 9px;
+  }
+  .sidebar nav a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .sidebar nav a .n {
+    font-variant-numeric: tabular-nums;
+    color: #b9c9ff;
+    font-size: 12px;
+    width: 18px;
+    flex: none;
+  }
+  .sidebar .meta {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.2);
+    font-size: 12px;
+    color: #c3d3ff;
+  }
+  .sidebar .meta div { margin-bottom: 4px; }
+
+  .main { flex: 1; min-width: 0; padding: 56px 48px 120px; }
+  .content { max-width: 880px; margin: 0 auto; }
+
+  .doc-header { margin-bottom: 48px; }
+  .doc-header .kicker {
+    font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin: 0 0 10px;
+  }
+  .doc-header h2 {
+    font-family: var(--font-display);
+    font-size: 34px;
+    margin: 0 0 10px;
+    text-wrap: balance;
+    font-weight: 600;
+  }
+  .doc-header p { color: var(--text-muted); font-size: 16px; max-width: 62ch; margin: 0; }
+
+  section { margin-bottom: 52px; scroll-margin-top: 24px; }
+  section > h3 {
+    font-family: var(--font-display);
+    font-size: 23px;
+    font-weight: 600;
+    margin: 0 0 6px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  section > h3 .idx { color: var(--text-faint); font-size: 15px; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+  section > .lede { color: var(--text-muted); margin: 0 0 20px; max-width: 66ch; }
+
+  h4 { font-size: 15px; margin: 22px 0 8px; color: var(--text); }
+
+  p { max-width: 70ch; }
+  ul, ol { padding-left: 22px; max-width: 68ch; }
+  li { margin-bottom: 6px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .card-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 14px; }
+
+  .callout {
+    border-left: 3px solid var(--border-strong);
+    background: var(--surface-alt);
+    border-radius: 0 10px 10px 0;
+    padding: 12px 16px;
+    margin: 10px 0;
+  }
+  .callout p, .callout ul { margin: 0; }
+  .callout ul { margin-top: 6px; }
+  .callout.question { border-left-color: var(--accent); background: var(--accent-soft); }
+  .callout.risk-high { border-left-color: var(--danger); background: var(--danger-soft); }
+  .callout.risk-med { border-left-color: var(--warning); background: var(--warning-soft); }
+  .callout .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px; }
+  .callout.question .label { color: var(--accent-strong); }
+  .callout.risk-high .label { color: var(--danger); }
+  .callout.risk-med .label { color: var(--warning); }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: 0.01em;
+    padding: 3px 9px; border-radius: 999px;
+    background: var(--neutral-soft); color: var(--neutral);
+  }
+  .badge.in { background: var(--success-soft); color: var(--success); }
+  .badge.out { background: var(--neutral-soft); color: var(--neutral); }
+  .badge.dev { background: var(--dev-soft); color: var(--dev); }
+  .badge.warn { background: var(--warning-soft); color: var(--warning); }
+  .badge.risk { background: var(--danger-soft); color: var(--danger); }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; background: var(--surface); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--surface-alt); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td code, p code, li code { font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-alt); padding: 1px 5px; border-radius: 5px; }
+
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0; }
+  .flow .step {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; font-size: 13.5px; font-weight: 600;
+  }
+  .flow .arrow { color: var(--text-faint); font-size: 15px; }
+
+  pre.diagram {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    color: var(--text);
+    white-space: pre;
+  }
+
+  .phase-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .phase {
+    display: grid; grid-template-columns: 84px 1fr; gap: 16px;
+    border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 14px 18px;
+  }
+  .phase .tag { font-family: var(--font-mono); font-size: 12px; color: var(--accent); font-weight: 700; padding-top: 2px; }
+  .phase h5 { margin: 0 0 4px; font-size: 14.5px; }
+  .phase p { margin: 0; font-size: 13.5px; color: var(--text-muted); }
+
+  .sprint {
+    border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 16px 20px; margin-bottom: 12px;
+  }
+  .sprint-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .sprint-head h5 { margin: 0; font-size: 15px; }
+  .sprint-head .est { font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); }
+  .sprint ul { margin: 6px 0 0; }
+
+  hr.rule { border: none; border-top: 1px solid var(--border); margin: 44px 0; }
+
+  footer.doc-footer { color: var(--text-faint); font-size: 12.5px; margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border); }
+
+  @media (max-width: 880px) {
+    .layout { flex-direction: column; }
+    .sidebar { position: relative; width: 100%; flex: none; height: auto; }
+    .main { padding: 32px 20px 80px; }
+  }
+</style>
+
+<div class="layout">
+  <aside class="sidebar">
+    <p class="eyebrow">Blueprint do produto · Etapa 1</p>
+    <h1>ERS 3D</h1>
+    <p class="subtitle">Gestão de Soluções e Fabricações</p>
+    <nav style="margin-bottom:18px;">
+      <a href="https://claude.ai/code/artifact/9cfe63b8-38ff-4a25-b106-79bbce441b25" target="_blank" rel="noopener">Etapa 2 — Personas &amp; Histórias →</a>
+      <a href="https://claude.ai/code/artifact/d8c7620f-468f-4153-b29b-bf8a2b01bcdd" target="_blank" rel="noopener">Etapa 3 — Segurança &amp; Monitoramento →</a>
+      <a href="https://claude.ai/code/artifact/e6fc186e-7be5-4b1e-a8e7-6d729cce1560" target="_blank" rel="noopener">Etapa 4 — Wireframes &amp; Design System →</a>
+      <a href="https://claude.ai/code/artifact/2f3e339e-c606-407f-8857-69937f53aebe" target="_blank" rel="noopener">Etapa 5 — Backlog &amp; Sprints →</a>
+    </nav>
+    <nav>
+      <a href="#resumo"><span class="n">01</span> Resumo da solução</a>
+      <a href="#escopo"><span class="n">02</span> Avaliação do escopo</a>
+      <a href="#duvidas"><span class="n">03</span> Dúvidas críticas</a>
+      <a href="#riscos-negocio"><span class="n">04</span> Riscos de negócio</a>
+      <a href="#riscos-tecnicos"><span class="n">05</span> Riscos técnicos</a>
+      <a href="#mvp"><span class="n">06</span> Escopo do MVP</a>
+      <a href="#adiado"><span class="n">07</span> Adiado para depois</a>
+      <a href="#fluxo"><span class="n">08</span> Fluxo completo</a>
+      <a href="#transicoes"><span class="n">09</span> Regras de transição</a>
+      <a href="#arquitetura"><span class="n">10</span> Arquitetura</a>
+      <a href="#dados"><span class="n">11</span> Modelo de dados</a>
+      <a href="#roadmap"><span class="n">12</span> Roadmap</a>
+      <a href="#backlog"><span class="n">13</span> Backlog inicial</a>
+      <a href="#criterios"><span class="n">14</span> Critérios de sucesso</a>
+      <a href="#saas"><span class="n">15</span> Caminho para SaaS</a>
+    </nav>
+    <div class="meta">
+      <div>Equipe: PM · Tech Lead · Dev · QA · Design</div>
+      <div>13 jul 2026 — v0.1 (pré-implementação)</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="content">
+
+      <div class="doc-header">
+        <p class="kicker">Documento de planejamento — não é código</p>
+        <h2>Visão, escopo e arquitetura antes da primeira linha</h2>
+        <p>Esta é a Etapa 1 combinada com os artefatos de arquitetura e roadmap pedidos: o suficiente para alinhar decisões antes de qualquer implementação. Nenhum módulo será construído até este documento ser aprovado ou ajustado.</p>
+      </div>
+
+      <section id="resumo">
+        <h3><span class="idx">01</span> Resumo da solução</h3>
+        <p>O ERS 3D — Gestão de Soluções e Fabricações é um CRM operacional de ponta a ponta: cobre o funil comercial, a precificação técnica de impressão 3D, a produção, o controle de qualidade, a logística, os estoques de filamento e peças, e o financeiro — com trilha de auditoria completa em toda entidade sensível.</p>
+        <p>Três decisões estruturais guiam todo o resto do documento:</p>
+        <ul>
+          <li><strong>Receita prevista ≠ dinheiro em caixa.</strong> Aprovar uma negociação gera uma conta a receber, não uma entrada financeira. O caixa só se move quando o pagamento é confirmado.</li>
+          <li><strong>Permissão por ação, não por nome de perfil.</strong> ROOT e ADMIN podem hoje ter o mesmo acesso, mas cada operação é checada contra uma permissão nomeada — não contra <code>role === 'ADMIN'</code> espalhado pelo código.</li>
+          <li><strong>Nada é apagado.</strong> Fechamento de ciclo, reprovação de qualidade, correção de estoque — tudo é histórico, nunca destrutivo.</li>
+        </ul>
+        <p>Tecnicamente: monólito modular (não microserviços), PostgreSQL com <code>NUMERIC</code>/Decimal para todo valor monetário, e um schema desenhado desde o início para não precisar de retrabalho estrutural caso o produto vire SaaS multi-tenant no futuro.</p>
+      </section>
+
+      <section id="escopo">
+        <h3><span class="idx">02</span> Avaliação do escopo</h3>
+        <p>O escopo descrito no briefing é, na prática, um ERP leve de manufatura sob encomenda — funil comercial + engenharia de custo + chão de fábrica + estoque duplo (matéria-prima e produto acabado) + financeiro com regime de competência. É um escopo correto para a visão de produto de longo prazo da ERS 3D, e está incomumente bem especificado (regras de transição, fórmula de precificação e separação de lucro já vêm praticamente prontas para virar critério de aceite).</p>
+        <p>Não é, no entanto, um escopo de MVP. 40+ tabelas, 28 telas e 5 perfis num único lançamento é o tipo de ambição que atrasa a primeira entrega útil sem aumentar o valor percebido nas primeiras semanas. A recomendação do time (PM + Tech Lead) é tratar o briefing inteiro como <strong>visão de produto</strong>, e fatiar a entrega pelas 7 fases já esboçadas na seção 27 do brief original — mantendo o financeiro, o catálogo B2B avançado e as integrações fora da primeira entrega.</p>
+        <div class="callout">
+          <span class="label">Ponto de atenção do Designer</span>
+          <p>A imagem de referência visual mencionada no briefing (menu lateral azul, cards claros etc.) não chegou a ser anexada nesta conversa. As seções 10 e 22 abaixo assumem essa direção descrita em texto; a Etapa 4 (wireframes e design system definitivo) fica bloqueada até a imagem ser enviada ou confirmada.</p>
+        </div>
+      </section>
+
+      <section id="duvidas">
+        <h3><span class="idx">03</span> Dúvidas críticas</h3>
+        <p class="lede">Perguntas que mudam decisões de schema ou de escopo — vale resolver antes da Fase 3 (CRM MVP) começar a ser codada.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tema</th><th>Pergunta</th><th>Por que importa</th></tr></thead>
+            <tbody>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>Decisões já confirmadas</h4>
+        <div class="callout" style="border-left-color: var(--success); background: var(--success-soft);">
+          <span class="label" style="color: var(--success);">Decidido · Política de estoque</span>
+          <p>Filamento é <strong>reservado no momento da aprovação do orçamento</strong> (transição Negociação → Desenvolvimento), não apenas quando a impressão começa de fato. O saldo disponível já é debitado nesse instante via movimentação do tipo <code>reserva</code>; a conversão para <code>consumo</code> definitivo (com gramas reais) acontece ao concluir a produção. Isso está refletido nas seções 09 e 11.</p>
+        </div>
+        <div class="callout" style="border-left-color: var(--success); background: var(--success-soft);">
+          <span class="label" style="color: var(--success);">Decidido · Documento fiscal</span>
+          <p>Sem emissão de NF-e/NFS-e. O sistema gera um <strong>PDF estruturado do orçamento/proposta</strong> (dados + identidade visual ERS 3D) para envio manual ao cliente — nenhuma integração externa nem certificado digital envolvidos. Emissão fiscal real fica registrada como possível integração futura (Fase 7), fora deste escopo.</p>
+        </div>
+        <div class="callout" style="border-left-color: var(--success); background: var(--success-soft);">
+          <span class="label" style="color: var(--success);">Decidido · Migração de dados</span>
+          <p>Não existe planilha ou sistema legado com clientes/orçamentos históricos. O sistema nasce com base limpa — sem necessidade de importador ou script de migração na Fase 2.</p>
+        </div>
+        <div class="callout" style="border-left-color: var(--success); background: var(--success-soft);">
+          <span class="label" style="color: var(--success);">Decidido · Campo "empresa" do cliente</span>
+          <p><code>companies</code> é uma entidade leve — praticamente uma tag/categoria (nome, opcionalmente segmento) associada ao cliente, usada só para agrupar e filtrar em relatórios e dashboard. Não tem contatos, endereços ou oportunidades próprias, e não representa multi-tenant interno da ERS 3D.</p>
+        </div>
+        <div class="callout" style="border-left-color: var(--success); background: var(--success-soft);">
+          <span class="label" style="color: var(--success);">Decidido · Impressoras</span>
+          <p>ERS 3D opera <strong>3 impressoras 3D</strong> hoje. Não justifica agenda visual/calendário — um campo simples por job basta. Modelo: tabela leve <code>printers</code> (id, nome, status) referenciada por <code>production_orders.printer_id</code>, o suficiente para nomear a máquina e alimentar o KPI de ocupação por impressora no dashboard sem complexidade de agendamento com conflitos.</p>
+        </div>
+        <div class="callout" style="border-left-color: var(--success); background: var(--success-soft);">
+          <span class="label" style="color: var(--success);">Decidido · Meios de pagamento</span>
+          <p>Na prática, apenas <strong>Pix</strong> e <strong>maquininha de cartão</strong>. Sem gateway de pagamento integrado — a <strong>baixa é sempre manual</strong> (usuário marca a parcela/conta a receber como paga). <code>payment_installments</code>/<code>financial_transactions</code> tratam forma de pagamento como um campo simples (enum), não como integração ativa.</p>
+        </div>
+      </section>
+
+      <section id="riscos-negocio">
+        <h3><span class="idx">04</span> Riscos de negócio</h3>
+        <div class="callout risk-med">
+          <span class="label">Risco · Adoção operacional</span>
+          <p>Checklist de qualidade e apontamento de horas/material real só geram valor se forem rápidos de preencher. Se a UI de chão de fábrica for lenta, o time vai pular campos — e os relatórios de margem por projeto ficam furados sem ninguém perceber.</p>
+        </div>
+        <div class="callout risk-med">
+          <span class="label">Risco · Confusão financeira na transição</span>
+          <p>A regra "orçamento aprovado ≠ dinheiro em caixa" é contraintuitiva para quem hoje talvez pense em "venda fechada" como receita. Precisa de um KPI de "receita prevista" bem separado visualmente de "receita recebida" no dashboard, ou decisões de compra/investimento vão ser tomadas em cima do número errado.</p>
+        </div>
+        <div class="callout risk-med">
+          <span class="label">Risco · Ciclos mensais mal compreendidos</span>
+          <p>Cards não concluídos que "atravessam" o fechamento mensal podem parecer perdidos se a UI não deixar claro que eles foram transportados ou marcados como pendência carregada. Isso é UX crítica, não só regra de backend.</p>
+        </div>
+      </section>
+
+      <section id="riscos-tecnicos">
+        <h3><span class="idx">05</span> Riscos técnicos</h3>
+        <div class="callout risk-high">
+          <span class="label">Risco alto · Concorrência de estoque</span>
+          <p>Dois usuários editando jobs que usam o mesmo filamento ao mesmo tempo é um caso de teste explícito do briefing. Sem <code>SELECT ... FOR UPDATE</code> (ou lock otimista com coluna de versão) desde a primeira migration de <code>filaments</code>/<code>inventory_items</code>, esse bug só aparece em produção sob carga real.</p>
+        </div>
+        <div class="callout risk-high">
+          <span class="label">Risco alto · Float em valores monetários</span>
+          <p>Precisa ser <code>NUMERIC</code> no Postgres e um tipo Decimal dedicado (não <code>number</code> nativo) em toda a cadeia — API, cálculo, serialização JSON. Um único ponto onde isso escapa (ex.: um <code>JSON.parse</code> descuidado) reintroduz erro de arredondamento no financeiro inteiro.</p>
+        </div>
+        <div class="callout risk-med">
+          <span class="label">Risco médio · Validação de transição só no front-end</span>
+          <p>As regras de bloqueio entre etapas do Kanban (ex.: não entrar em Negociação sem orçamento) têm que ser reforçadas no backend. Sob pressão de prazo é comum a validação nascer só no componente de drag-and-drop e nunca chegar à API.</p>
+        </div>
+        <div class="callout risk-med">
+          <span class="label">Risco médio · Auditoria como padrão transversal</span>
+          <p>Log de auditoria em 30+ entidades não deve ser escrito manualmente em cada service — precisa de um interceptor/middleware comum desde a Fase 2, senão vira dívida técnica espalhada e inconsistente.</p>
+        </div>
+        <div class="callout risk-med">
+          <span class="label">Risco médio · Modelagem de ciclo mensal</span>
+          <p>"Card pode pertencer ao ciclo anterior mas aparecer no ciclo atual como pendência" não é um Kanban simples de coluna fixa. Vale prototipar o schema de <code>crm_cycles</code> + <code>opportunity_stage_history</code> antes de implementar a tela, para não descobrir a limitação depois de pronto.</p>
+        </div>
+      </section>
+
+      <section id="mvp">
+        <h3><span class="idx">06</span> Escopo recomendado para o MVP</h3>
+        <p class="lede">Cobre as Fases 2 a 5 do roadmap original, mais o financeiro essencial da Fase 6 — o suficiente para rodar a operação real do primeiro ao último passo, sem os módulos de expansão comercial.</p>
+        <div class="card-grid">
+          <div class="card">
+            <span class="badge in">incluído</span>
+            <h4 style="margin-top:10px">Fundação</h4>
+            <p style="color:var(--text-muted); font-size:13.5px">Auth, usuários, permissões por ação (ROOT/ADMIN/CONTADOR), auditoria transversal, design system inicial.</p>
+          </div>
+          <div class="card">
+            <span class="badge in">incluído</span>
+            <h4 style="margin-top:10px">Clientes &amp; CRM</h4>
+            <p style="color:var(--text-muted); font-size:13.5px">Cadastro com detecção de duplicidade, página 360°, Kanban completo (6 colunas, histórico, regras de bloqueio), ciclos mensais.</p>
+          </div>
+          <div class="card">
+            <span class="badge in">incluído</span>
+            <h4 style="margin-top:10px">Calculadora &amp; orçamento</h4>
+            <p style="color:var(--text-muted); font-size:13.5px">Filamentos, projetos, jobs, fórmula de precificação, orçamentos versionados com aprovação.</p>
+          </div>
+          <div class="card">
+            <span class="badge in">incluído</span>
+            <h4 style="margin-top:10px">Produção &amp; qualidade</h4>
+            <p style="color:var(--text-muted); font-size:13.5px">Ordem de produção, estoque de filamento com movimentações, checklist de qualidade configurável, retrabalho.</p>
+          </div>
+          <div class="card">
+            <span class="badge in">incluído</span>
+            <h4 style="margin-top:10px">Estoque de peças &amp; entrega</h4>
+            <p style="color:var(--text-muted); font-size:13.5px">Disponível/reservado/vendido/descartado, registro de entrega e checklist de embalagem — sem integração automática de frete.</p>
+          </div>
+          <div class="card">
+            <span class="badge in">incluído</span>
+            <h4 style="margin-top:10px">Financeiro essencial</h4>
+            <p style="color:var(--text-muted); font-size:13.5px">Contas a receber geradas por negociação aprovada, parcelas, status de pagamento, fluxo de caixa simples, lucro realizado vs. potencial.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="adiado">
+        <h3><span class="idx">07</span> Funcionalidades adiadas</h3>
+        <p class="lede">Não removidas do produto — apenas fora do primeiro lançamento. Arquitetura preparada para todas elas (módulos de domínio reservados).</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Item</th><th>Fase sugerida</th><th>Motivo do adiamento</th></tr></thead>
+            <tbody>
+              <tr><td>Catálogos B2B por nicho + link compartilhável/PDF</td><td>Fase 7</td><td>Expansão comercial, não bloqueia a operação atual</td></tr>
+              <tr><td>Contas a pagar completo, centros de custo, conciliação bancária</td><td>Fase 6.2</td><td>Contas a receber cobre a dor mais urgente primeiro</td></tr>
+              <tr><td>Integrações reais (Correios, Melhor Envio, WhatsApp, e-mail, contábil)</td><td>Fase 7</td><td>Cada integração é um projeto à parte; MVP registra os dados manualmente</td></tr>
+              <tr><td>Notificações automáticas avançadas (crons de inatividade etc.)</td><td>Fase 6.2 / 7</td><td>MVP cobre alertas in-app essenciais (estoque, atraso, vencimento)</td></tr>
+              <tr><td>Portal do cliente externo</td><td>Fase 7</td><td>Requer autenticação e superfície pública separadas</td></tr>
+              <tr><td>Antivírus/scanning avançado de upload</td><td>Fase 6+</td><td>MVP usa validação de extensão/MIME + storage privado como mitigação inicial</td></tr>
+              <tr><td>App mobile nativo, IA, SaaS multi-tenant ativo</td><td>Fase 7+</td><td>Evoluções de produto, não requisitos da operação diária</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="fluxo">
+        <h3><span class="idx">08</span> Fluxo completo do CRM</h3>
+        <div class="flow">
+          <span class="step">Proposta</span><span class="arrow">→</span>
+          <span class="step">Negociação</span><span class="arrow">→</span>
+          <span class="step">Desenvolvimento</span><span class="arrow">→</span>
+          <span class="step">Teste de Qualidade</span><span class="arrow">→</span>
+          <span class="step">Entrega</span><span class="arrow">→</span>
+          <span class="step">Concluído</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Etapa</th><th>O que acontece</th><th>Sai quando</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Proposta</strong></td><td>Briefing, anexos (STL/STEP/OBJ/PDF/imagem), quantidade, prazo desejado, estimativa inicial, tarefas de follow-up.</td><td>Cliente, projeto e orçamento existem.</td></tr>
+              <tr><td><strong>Negociação</strong></td><td>Orçamento formal (calculadora ou manual com justificativa), versões, desconto, condição de pagamento, validade.</td><td>Orçamento aprovado, valor e prazo definidos.</td></tr>
+              <tr><td><strong>Desenvolvimento</strong></td><td>Conta a receber criada, ordem de produção, consumo/reserva de filamento, apontamento de horas e material real.</td><td>Produção concluída (com falhas/reimpressões registradas, se houver).</td></tr>
+              <tr><td><strong>Teste de Qualidade</strong></td><td>Checklist configurável, evidências fotográficas, resultado aprovado / reprovado / aprovado com ressalva.</td><td>Resultado ≠ reprovado (reprovado retorna a Desenvolvimento).</td></tr>
+              <tr><td><strong>Entrega</strong></td><td>Checklist de embalagem, método de envio, rastreio, comprovante.</td><td>Entrega confirmada e situação financeira conhecida.</td></tr>
+              <tr><td><strong>Concluído</strong></td><td>Arquivado no ciclo mensal, métricas consolidadas, histórico do cliente atualizado.</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="transicoes">
+        <h3><span class="idx">09</span> Regras de transição</h3>
+        <p class="lede">Validadas sempre no backend — o front-end reflete o resultado, nunca decide sozinho.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Transição</th><th>Pré-condições obrigatórias</th><th>Efeito automático</th></tr></thead>
+            <tbody>
+              <tr><td>Proposta → Negociação</td><td>Cliente cadastrado + oportunidade + orçamento (calculadora ou manual justificado)</td><td>Nenhum além do registro em <code>opportunity_stage_history</code></td></tr>
+              <tr><td>Negociação → Desenvolvimento</td><td>Orçamento aprovado, valor negociado, condição de pagamento e prazo definidos</td><td>Cria <code>accounts_receivable</code> (status <code>previsto</code>), gera <code>production_orders</code>, <strong>reserva</strong> o filamento estimado do job (<code>filament_movements</code> tipo <code>reserva</code>, debita saldo disponível)</td></tr>
+              <tr><td>Desenvolvimento → Teste de Qualidade</td><td>Status de impressão = concluída; horas e material reais preenchidos</td><td>Converte a reserva em <code>consumo</code> definitivo com as gramas reais (<code>job_filaments.grams_actual</code>); diferença entre reservado e consumido é liberada de volta ao saldo; abre <code>quality_checks</code></td></tr>
+              <tr><td>Teste de Qualidade → Entrega</td><td>Resultado = aprovado ou aprovado com ressalva</td><td>Habilita registro de <code>deliveries</code></td></tr>
+              <tr><td>Teste de Qualidade → Desenvolvimento (reprovação)</td><td>Motivo obrigatório</td><td>Gera retrabalho/nova impressão, registra perda, mantém histórico da reprovação</td></tr>
+              <tr><td>Entrega → Concluído</td><td>Qualidade aprovada + produção finalizada + entrega registrada + pendências financeiras justificadas</td><td>Card arquivável no fechamento do ciclo</td></tr>
+              <tr><td>Qualquer retrocesso manual de etapa</td><td>Observação obrigatória + permissão específica (não é ação padrão de qualquer perfil)</td><td>Registrado como evento distinto de uma reprovação automática</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="arquitetura">
+        <h3><span class="idx">10</span> Arquitetura recomendada <span class="badge dev">Tech Lead</span></h3>
+
+        <div class="callout" style="border-left-color: var(--success); background: var(--success-soft);">
+          <span class="label" style="color: var(--success);">Decidido · Orçamento e escala revisam a arquitetura</span>
+          <p>Volume real (~20 clientes ativos, ~10 orçamentos/mês, poucos usuários simultâneos) e a exigência de infraestrutura gratuita mudam a recomendação original de dois serviços separados (Next.js + NestJS) para <strong>um único aplicativo Next.js full-stack</strong>, com a mesma separação de módulos de domínio só que dentro de um projeto — sem o custo operacional de manter e hospedar duas aplicações. Nessa escala, isso não compromete robustez nem testabilidade.</p>
+        </div>
+
+        <div class="card-grid">
+          <div class="card">
+            <h4 style="margin-top:0">Aplicação (única)</h4>
+            <p style="color:var(--text-muted); font-size:13.5px">Next.js (App Router) + TypeScript + Tailwind + componentes acessíveis (Radix/shadcn) + React Hook Form + Zod + TanStack Query + <code>dnd-kit</code>. Route Handlers/Server Actions chamam uma camada de <strong>serviços de domínio</strong> (uma pasta por módulo: <code>auth</code>, <code>customers</code>, <code>crm</code>, <code>quotes</code>, <code>jobs</code>, <code>filaments</code>, <code>inventory</code>, <code>quality</code>, <code>deliveries</code>, <code>finance</code> etc.), nunca acessando o banco direto da rota — é essa disciplina que preserva a testabilidade sem precisar de um segundo serviço.</p>
+          </div>
+          <div class="card">
+            <h4 style="margin-top:0">Autenticação</h4>
+            <p style="color:var(--text-muted); font-size:13.5px">E-mail + senha apenas (sem SSO/OAuth). Auth.js (NextAuth) com provider de credenciais, hash com argon2, sessão em cookie httpOnly. Simples de operar, gratuito, sem serviço externo.</p>
+          </div>
+          <div class="card">
+            <h4 style="margin-top:0">Banco de dados</h4>
+            <p style="color:var(--text-muted); font-size:13.5px"><a href="https://neon.tech" target="_blank" rel="noopener">Neon</a> (Postgres serverless, free tier) + Prisma. Dinheiro sempre em <code>NUMERIC(12,2)</code>, nunca <code>float</code>; Decimal (Prisma.Decimal) do banco até a UI. No volume atual, o free tier tem folga confortável.</p>
+          </div>
+          <div class="card">
+            <h4 style="margin-top:0">Arquivos</h4>
+            <p style="color:var(--text-muted); font-size:13.5px">Cloudflare R2 (free tier, sem custo de saída/egress — importante para arquivos STL/STEP grandes) com URLs assinadas e temporárias.</p>
+          </div>
+        </div>
+
+        <h4>Hospedagem e deploy</h4>
+        <div class="callout" style="border-left-color: var(--success); background: var(--success-soft);">
+          <span class="label" style="color: var(--success);">Decidido · Hospedagem</span>
+          <p><strong>Render (Free Web Service)</strong>. Sem restrição de uso comercial nos termos, ao contrário do plano gratuito da Vercel (Hobby, que é para projetos pessoais). Trade-off aceito: o serviço "dorme" após inatividade e leva alguns segundos para acordar no primeiro acesso do dia — ok para uso interno.</p>
+        </div>
+        <p>Rota de saída, se um dia incomodar: migrar para Vercel Pro (~US$20/mês, sem ressalva de ToS) — decisão reversível, não estrutural, já que a aplicação é um Next.js padrão.</p>
+
+        <h4>Observabilidade</h4>
+        <p>Sentry free tier (5 mil eventos/mês) para erros; GitHub Actions free tier para CI (lint → typecheck → testes → build → dry-run de migration → deploy). Redis/fila (BullMQ) fica fora do MVP — nesse volume não há fila a processar; entra só se notificações automáticas (Fase 6.2+) exigirem.</p>
+
+        <h4>Por que módulos, não microserviços</h4>
+        <p>Aprovar orçamento gera conta a receber, ordem de produção e movimentação de estoque numa única transação — isso exige consistência forte, difícil de garantir entre serviços separados. Um único app com módulos de domínio isolados por pasta entrega a mesma organização sem o custo de operar múltiplos deploys, filas de mensageria ou consistência eventual — desnecessário nesta escala.</p>
+      </section>
+
+      <section id="dados">
+        <h3><span class="idx">11</span> Modelo de dados inicial <span class="badge dev">Tech Lead</span></h3>
+        <p class="lede">Cobre as entidades do escopo de MVP (seção 06). As demais tabelas do briefing completo (<code>catalog_products</code>, <code>accounts_payable</code> detalhado etc.) entram como módulo já reservado, sem tabela ativa até a fase correspondente.</p>
+
+        <h4>Estratégias transversais</h4>
+        <ul>
+          <li><strong>Chaves:</strong> UUID em toda tabela.</li>
+          <li><strong>Datas:</strong> armazenadas em UTC; exibidas no fuso configurado em <code>settings</code>.</li>
+          <li><strong>Dinheiro:</strong> <code>NUMERIC(12,2)</code>, nunca <code>float</code>; arredondamento financeiro definido uma única vez, no domínio de cálculo.</li>
+          <li><strong>Exclusão:</strong> soft delete (<code>deleted_at</code>) para dados operacionais; para dados de negócio (orçamento, conta financeira) usa-se status de cancelamento/estorno em vez de apagar.</li>
+          <li><strong>Versionamento:</strong> orçamento vira nova linha em <code>quote_versions</code> a cada revisão; concorrência de estoque usa coluna <code>version</code> (lock otimista) em <code>filaments</code>/<code>inventory_items</code>.</li>
+          <li><strong>Auditoria:</strong> toda escrita relevante passa por um interceptor comum que grava em <code>audit_logs</code> (entidade, operação, valor anterior/novo, usuário, motivo).</li>
+        </ul>
+
+        <h4>Diagrama relacional (texto)</h4>
+        <pre class="diagram">users ──&lt; user_roles &gt;── roles ──&lt; role_permissions &gt;── permissions
+
+companies ──&lt; customers ──&lt; customer_contacts
+                         ├──&lt; customer_addresses
+                         ├──&lt; customer_interactions
+                         └──&lt; opportunities
+
+crm_cycles ──&lt; opportunities ──&lt; opportunity_stage_history
+                             ├──&lt; tasks
+                             ├──&lt; quotes
+                             └──1:1── projects (criado ao entrar em Desenvolvimento)
+
+quotes ──&lt; quote_versions ──&lt; quote_items
+      └──&lt; quote_approvals
+
+projects ──&lt; project_files
+         └──&lt; jobs ──&lt; job_filaments &gt;── filaments ──&lt; filament_movements
+                   ├──1:1── production_orders ──&lt; quality_checks ──&lt; quality_check_items
+                   │                           └──&lt; deliveries ──&lt; delivery_events
+                   └──&lt; inventory_items ──&lt; inventory_movements
+
+opportunities ──1:1── accounts_receivable ──&lt; payment_installments
+financial_transactions ── referencia accounts_receivable | accounts_payable
+financial_categories ── referenciada por accounts_receivable/payable
+
+attachments ── polimórfica (entity_type, entity_id): customers, quotes, projects,
+               quality_checks, deliveries, financial_transactions...
+audit_logs ── polimórfica (entity_type, entity_id), referencia users
+notifications ── referencia users
+settings ── chave/valor, escopo global ou por módulo</pre>
+
+        <h4>Entidades principais e campos-chave</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tabela</th><th>Campos-chave (MVP)</th><th>Observação</th></tr></thead>
+            <tbody>
+              <tr><td><code>users</code></td><td>email, password_hash, status, last_login_at</td><td>Bloqueio/inativação em vez de exclusão</td></tr>
+              <tr><td><code>roles</code> / <code>permissions</code></td><td>name, slug</td><td>Permissão nomeada por ação (<code>finance.read</code>, <code>inventory.adjust</code> etc.)</td></tr>
+              <tr><td><code>customers</code></td><td>type (PF/PJ), document, email, phone, origin, status, owner_id</td><td>Índice único condicional em email/telefone/documento para checagem de duplicidade</td></tr>
+              <tr><td><code>crm_cycles</code></td><td>reference_month, status (aberto/fechado), closed_at, closed_by</td><td>Fechamento nunca apaga cards</td></tr>
+              <tr><td><code>opportunities</code></td><td>customer_id, cycle_id, stage, priority, deadline_at, carried_from_cycle_id</td><td><code>carried_from_cycle_id</code> resolve o card "carregado" entre ciclos</td></tr>
+              <tr><td><code>opportunity_stage_history</code></td><td>opportunity_id, from_stage, to_stage, user_id, note, moved_at</td><td>Base do "dias na etapa" exibido no card</td></tr>
+              <tr><td><code>quotes</code> / <code>quote_versions</code></td><td>base_value, discount, final_value, payment_terms, valid_until, version_no</td><td>Nunca sobrescreve; sempre nova versão</td></tr>
+              <tr><td><code>jobs</code></td><td>project_id, watts, print_hours, kwh_price, maintenance_pct, safety_pct, profit_pct, rule_version</td><td>Guarda entradas + fórmula aplicada + resultado, imutável após criado</td></tr>
+              <tr><td><code>job_filaments</code></td><td>job_id, filament_id, grams_estimated, grams_actual, cost_calculated</td><td>Associativa; base do consumo real vs. estimado</td></tr>
+              <tr><td><code>filaments</code></td><td>price_per_kg, grams_available, min_stock, version</td><td><code>version</code> para lock otimista</td></tr>
+              <tr><td><code>filament_movements</code></td><td>filament_id, type, quantity, balance_before, balance_after, job_id, user_id</td><td>Nunca permite saldo negativo (constraint + transação)</td></tr>
+              <tr><td><code>inventory_items</code> / <code>inventory_movements</code></td><td>available, reserved, sold, discarded, unit_cost, unit_price</td><td>Suporta lote (quantidade &gt; 1), não só unidade</td></tr>
+              <tr><td><code>production_orders</code></td><td>job_id, printer, responsible_id, planned_start/end, status prazo (no prazo/próximo/atrasado)</td><td>Contador de prazo calculado, não digitado</td></tr>
+              <tr><td><code>quality_checks</code> / <code>quality_check_items</code></td><td>result (aprovado/reprovado/ressalva), checklist_item, evidence_files</td><td>Reprovação sempre gera novo ciclo de produção, mantém histórico</td></tr>
+              <tr><td><code>deliveries</code></td><td>method, tracking_code, sent_at, delivered_at, status</td><td>Sem integração automática no MVP — campos manuais</td></tr>
+              <tr><td><code>accounts_receivable</code> / <code>payment_installments</code></td><td>gross, discount, net, due_date, status</td><td>Criada apenas na aprovação da negociação, nunca antes</td></tr>
+              <tr><td><code>financial_transactions</code></td><td>type, amount, receivable_id/payable_id, paid_at</td><td>Única fonte que efetivamente move o caixa</td></tr>
+              <tr><td><code>attachments</code></td><td>entity_type, entity_id, storage_key, mime_type, size, checksum</td><td>Nunca URL pública permanente — sempre assinada e temporária</td></tr>
+              <tr><td><code>audit_logs</code></td><td>entity_type, entity_id, action, before, after, reason, user_id</td><td>Escrita via interceptor comum, não manual por service</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="roadmap">
+        <h3><span class="idx">12</span> Roadmap de implementação</h3>
+        <div class="phase-list">
+          <div class="phase"><span class="tag">FASE 1</span><div><h5>Descoberta</h5><p>Fechar as dúvidas críticas da seção 03, protótipo de telas-chave, validação de arquitetura. Já em andamento com este documento.</p></div></div>
+          <div class="phase"><span class="tag">FASE 2</span><div><h5>Fundação</h5><p>Projeto, banco, auth, usuários, permissões por ação, auditoria transversal, design system, infraestrutura (Docker, CI, ambientes).</p></div></div>
+          <div class="phase"><span class="tag">FASE 3</span><div><h5>CRM MVP</h5><p>Clientes, oportunidades, Kanban completo, histórico de transição, tarefas, ciclos mensais.</p></div></div>
+          <div class="phase"><span class="tag">FASE 4</span><div><h5>Orçamento &amp; calculadora</h5><p>Filamentos, projetos, jobs, fórmula de precificação, orçamentos versionados, aprovação.</p></div></div>
+          <div class="phase"><span class="tag">FASE 5</span><div><h5>Produção</h5><p>Ordem de produção, consumo/reserva de estoque, retrabalho, controle de qualidade.</p></div></div>
+          <div class="phase"><span class="tag">FASE 6</span><div><h5>Financeiro &amp; entrega</h5><p>Contas a receber, pagamentos, fluxo de caixa, entrega, relatórios. <em>(6.1 = essencial no MVP; 6.2 = contas a pagar/conciliação, pós-MVP.)</em></p></div></div>
+          <div class="phase"><span class="tag">FASE 7</span><div><h5>Evolução</h5><p>Catálogos B2B, automações, integrações, portal do cliente, IA, app móvel, SaaS multi-tenant.</p></div></div>
+        </div>
+      </section>
+
+      <section id="backlog">
+        <h3><span class="idx">13</span> Backlog das primeiras sprints</h3>
+        <p class="lede">Estimativas relativas (P/M/G), assumindo sprints de 2 semanas. Ajustável quando houver tamanho de time definido.</p>
+
+        <div class="sprint">
+          <div class="sprint-head"><h5>Sprint 0 — Setup</h5><span class="est">P</span></div>
+          <ul>
+            <li>Repositório Next.js único (app + camada de domínio por módulo), Neon (Postgres) + Prisma, deploy inicial em Render, CI básico (lint + typecheck + build)</li>
+            <li>Schema inicial: <code>users</code>, <code>roles</code>, <code>permissions</code>, <code>audit_logs</code></li>
+            <li>Design tokens iniciais (cor, tipografia, espaçamento) — <em>bloqueado até a imagem de referência ser confirmada</em></li>
+          </ul>
+        </div>
+
+        <div class="sprint">
+          <div class="sprint-head"><h5>Sprint 1 — Auth &amp; permissões</h5><span class="est">M</span></div>
+          <ul>
+            <li>Login com Auth.js (credenciais e-mail/senha), recuperação de senha, sessão segura, rate limiting</li>
+            <li>RBAC por ação (não por nome de perfil) + seed de ROOT/ADMIN/CONTADOR</li>
+            <li>Interceptor de auditoria reutilizável</li>
+            <li>Shell da aplicação: sidebar, header, layout responsivo</li>
+          </ul>
+        </div>
+
+        <div class="sprint">
+          <div class="sprint-head"><h5>Sprint 2 — Clientes</h5><span class="est">M</span></div>
+          <ul>
+            <li>CRUD de clientes (PF/PJ) com validação de CPF/CNPJ</li>
+            <li>Detecção de duplicidade (email/telefone/documento) com alerta antes de salvar</li>
+            <li>Página 360° do cliente (esqueleto — histórico populado conforme módulos seguintes existirem)</li>
+          </ul>
+        </div>
+
+        <div class="sprint">
+          <div class="sprint-head"><h5>Sprint 3 — Kanban CRM</h5><span class="est">G</span></div>
+          <ul>
+            <li>Quadro com 6 colunas, drag-and-drop (<code>dnd-kit</code>), card com dados essenciais</li>
+            <li>Regras de bloqueio de transição validadas no backend (seção 09)</li>
+            <li>Histórico de movimentação + "dias na etapa"</li>
+            <li>Filtros do quadro (responsável, cliente, prioridade, atrasados)</li>
+          </ul>
+        </div>
+
+        <div class="sprint">
+          <div class="sprint-head"><h5>Sprint 4 — Filamentos &amp; calculadora</h5><span class="est">G</span></div>
+          <ul>
+            <li>CRUD de filamentos + estoque com movimentações e alerta de mínimo</li>
+            <li>Motor de precificação (fórmula da seção 10 do brief original) com Decimal e rejeição quando soma de percentuais ≥ 100%</li>
+            <li>Job de cálculo com histórico imutável de entradas/resultado</li>
+          </ul>
+        </div>
+
+        <div class="sprint">
+          <div class="sprint-head"><h5>Sprint 5 — Orçamento &amp; ciclo mensal</h5><span class="est">M</span></div>
+          <ul>
+            <li>Orçamento gerado a partir do job, versionamento, aprovação</li>
+            <li>Exportação do orçamento em PDF (documento estruturado, identidade visual ERS 3D) para envio manual ao cliente</li>
+            <li>Ciclo mensal: abertura, fechamento com confirmação/resumo, transporte ou pendência carregada</li>
+            <li>Integração completa Proposta → Negociação com as pré-condições da seção 09</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="criterios">
+        <h3><span class="idx">14</span> Critérios de sucesso</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Critério</th><th>Meta para o MVP</th></tr></thead>
+            <tbody>
+              <tr><td>Integridade de estoque</td><td>Zero ocorrência de saldo negativo em filamento ou peça, inclusive sob teste de concorrência</td></tr>
+              <tr><td>Integridade financeira</td><td>100% dos valores monetários em Decimal/NUMERIC; nenhuma receita prevista contabilizada como recebida</td></tr>
+              <tr><td>Auditoria</td><td>100% das operações críticas (aprovação, estoque, financeiro, permissão) com registro em <code>audit_logs</code></td></tr>
+              <tr><td>Operação</td><td>Criar orçamento completo (cliente → job → orçamento) em menos de 5 minutos na UI</td></tr>
+              <tr><td>Confiabilidade de transição</td><td>100% das transições de etapa bloqueadas no backend quando pré-condição não é satisfeita</td></tr>
+              <tr><td>Visibilidade</td><td>Dashboard responde: quem, o quê, em que etapa, quanto será faturado, se está atrasado — sem navegação adicional</td></tr>
+              <tr><td>Adoção</td><td>Checklist de qualidade e apontamento técnico preenchidos em ≥ 90% das ordens de produção após 30 dias de uso</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="saas">
+        <h3><span class="idx">15</span> Caminho para um futuro SaaS <span class="badge dev">PM</span></h3>
+        <p class="lede">Nada disto é construído agora — é o motivo de certas escolhas de schema serem feitas do jeito certo desde o MVP, para evitar uma migração dolorosa depois.</p>
+        <ul>
+          <li><strong>Tenant desde o desenho:</strong> incluir <code>tenant_id</code> nas tabelas de negócio principais desde já (sempre com o mesmo valor fixo no MVP), evitando alterar schema depois.</li>
+          <li><strong>Isolamento lógico primeiro:</strong> row-level por <code>tenant_id</code> como padrão; schema-per-tenant fica reservado para contas grandes, se algum dia fizer sentido.</li>
+          <li><strong>Billing como módulo à parte:</strong> integração de cobrança (ex. Stripe) desenhada como domínio isolado, sem se misturar ao financeiro operacional da ERS 3D.</li>
+          <li><strong>Feature flags por tenant</strong> para liberar módulos (catálogo B2B, integrações) por plano.</li>
+          <li><strong>Catálogo com white-label:</strong> o módulo de catálogo (seção 15 do brief original) já nasce pensado para ter domínio/cores customizáveis por cliente do SaaS.</li>
+          <li><strong>API pública + webhooks documentados</strong> para integrações de terceiros, reaproveitando a mesma API interna já usada pelo front-end.</li>
+          <li><strong>Central de administração de tenants</strong> para a própria ERS 3D operar como fornecedora da plataforma.</li>
+        </ul>
+      </section>
+
+      <footer class="doc-footer">
+        ERS 3D — Gestão de Soluções e Fabricações · Documento de planejamento, Etapa 1 · Continua em <a href="https://claude.ai/code/artifact/9cfe63b8-38ff-4a25-b106-79bbce441b25" target="_blank" rel="noopener">Etapa 2</a>, <a href="https://claude.ai/code/artifact/d8c7620f-468f-4153-b29b-bf8a2b01bcdd" target="_blank" rel="noopener">3</a>, <a href="https://claude.ai/code/artifact/e6fc186e-7be5-4b1e-a8e7-6d729cce1560" target="_blank" rel="noopener">4</a> e <a href="https://claude.ai/code/artifact/2f3e339e-c606-407f-8857-69937f53aebe" target="_blank" rel="noopener">5</a>.
+      </footer>
+
+    </div>
+  </main>
+</div>

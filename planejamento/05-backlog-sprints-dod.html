@@ -1,0 +1,267 @@
+<title>ERS 3D — Backlog, Sprints e Definição de Pronto</title>
+<style>
+  :root {
+    --bg: #eef1f7; --surface: #ffffff; --surface-alt: #e4e9f3; --border: #d7deea; --border-strong: #b9c4d8;
+    --text: #1a2333; --text-muted: #57647a; --text-faint: #7c879b;
+    --accent: #2454e0; --accent-strong: #17348c; --accent-soft: #e5ecff;
+    --success: #12805c; --success-soft: #e1f4ec; --warning: #9a6300; --warning-soft: #fbeed2;
+    --danger: #b4293a; --danger-soft: #fbe4e6; --dev: #6a3fd6; --dev-soft: #ede6fb;
+    --neutral: #5c6779; --neutral-soft: #e9ecf2;
+    --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+    --sidebar-w: 280px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f141d; --surface: #171e2b; --surface-alt: #1c2434; --border: #2a3448; --border-strong: #38455c;
+      --text: #e8ecf4; --text-muted: #a3aec2; --text-faint: #7c879b;
+      --accent: #6f9bff; --accent-strong: #a9c2ff; --accent-soft: #1c2c55;
+      --success: #4fcf9d; --success-soft: #133329; --warning: #e3ac3f; --warning-soft: #3a2c0e;
+      --danger: #ef7a86; --danger-soft: #3a1a1f; --dev: #b49bff; --dev-soft: #2a2350;
+      --neutral: #a3aec2; --neutral-soft: #232c3d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141d; --surface: #171e2b; --surface-alt: #1c2434; --border: #2a3448; --border-strong: #38455c;
+    --text: #e8ecf4; --text-muted: #a3aec2; --text-faint: #7c879b;
+    --accent: #6f9bff; --accent-strong: #a9c2ff; --accent-soft: #1c2c55;
+    --success: #4fcf9d; --success-soft: #133329; --warning: #e3ac3f; --warning-soft: #3a2c0e;
+    --danger: #ef7a86; --danger-soft: #3a1a1f; --dev: #b49bff; --dev-soft: #2a2350;
+    --neutral: #a3aec2; --neutral-soft: #232c3d;
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f7; --surface: #ffffff; --surface-alt: #e4e9f3; --border: #d7deea; --border-strong: #b9c4d8;
+    --text: #1a2333; --text-muted: #57647a; --text-faint: #7c879b;
+    --accent: #2454e0; --accent-strong: #17348c; --accent-soft: #e5ecff;
+    --success: #12805c; --success-soft: #e1f4ec; --warning: #9a6300; --warning-soft: #fbeed2;
+    --danger: #b4293a; --danger-soft: #fbe4e6; --dev: #6a3fd6; --dev-soft: #ede6fb;
+    --neutral: #5c6779; --neutral-soft: #e9ecf2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); }
+  ::selection { background: var(--accent-soft); }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: var(--sidebar-w); flex: 0 0 var(--sidebar-w); background: linear-gradient(180deg, var(--accent-strong), var(--accent) 78%); color: #eef3ff; padding: 32px 24px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .sidebar .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #c3d3ff; margin: 0 0 6px; }
+  .sidebar h1 { font-family: var(--font-display); font-size: 26px; line-height: 1.2; margin: 0 0 4px; font-weight: 600; text-wrap: balance; }
+  .sidebar .subtitle { font-size: 13.5px; color: #d3ddff; margin: 0 0 20px; }
+  .sidebar .backlink { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #dbe4ff; text-decoration: none; margin-bottom: 8px; padding: 6px 10px; border: 1px solid rgba(255,255,255,0.25); border-radius: 8px; }
+  .sidebar .backlink:hover { background: rgba(255,255,255,0.12); }
+  .sidebar nav { display: flex; flex-direction: column; gap: 2px; margin-top: 16px; }
+  .sidebar nav a { color: #dbe4ff; text-decoration: none; font-size: 13.5px; padding: 7px 10px; border-radius: 7px; display: flex; gap: 9px; }
+  .sidebar nav a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .sidebar nav a .n { font-variant-numeric: tabular-nums; color: #b9c9ff; font-size: 12px; width: 18px; flex: none; }
+  .sidebar .meta { margin-top: 32px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 12px; color: #c3d3ff; }
+  .sidebar .meta div { margin-bottom: 4px; }
+  .main { flex: 1; min-width: 0; padding: 56px 48px 120px; }
+  .content { max-width: 880px; margin: 0 auto; }
+  .doc-header { margin-bottom: 48px; }
+  .doc-header .kicker { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin: 0 0 10px; }
+  .doc-header h2 { font-family: var(--font-display); font-size: 34px; margin: 0 0 10px; text-wrap: balance; font-weight: 600; }
+  .doc-header p { color: var(--text-muted); font-size: 16px; max-width: 62ch; margin: 0; }
+  section { margin-bottom: 52px; scroll-margin-top: 24px; }
+  section > h3 { font-family: var(--font-display); font-size: 23px; font-weight: 600; margin: 0 0 6px; display: flex; align-items: baseline; gap: 10px; }
+  section > h3 .idx { color: var(--text-faint); font-size: 15px; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+  section > .lede { color: var(--text-muted); margin: 0 0 20px; max-width: 66ch; }
+  h4 { font-size: 15px; margin: 24px 0 8px; color: var(--text); }
+  p { max-width: 70ch; }
+  ul, ol { padding-left: 22px; max-width: 68ch; }
+  li { margin-bottom: 6px; }
+  .callout { border-left: 3px solid var(--border-strong); background: var(--surface-alt); border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 10px 0; }
+  .callout p { margin: 0; }
+  .callout .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--neutral-soft); color: var(--neutral); }
+  .badge.dev { background: var(--dev-soft); color: var(--dev); }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; background: var(--surface); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--surface-alt); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td code, p code, li code { font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-alt); padding: 1px 5px; border-radius: 5px; }
+  pre.diagram { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; overflow-x: auto; color: var(--text); white-space: pre; }
+  .sprint { border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; }
+  .sprint-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .sprint-head h5 { margin: 0; font-size: 15px; }
+  .sprint-head .est { font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); }
+  .sprint ul { margin: 6px 0 0; }
+  .sprint .dep { font-size: 12px; color: var(--text-faint); margin-top: 8px; }
+  .checklist { list-style: none; padding: 0; margin: 14px 0; display: flex; flex-direction: column; gap: 8px; }
+  .checklist li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+  .checklist li::before { content: "☐"; color: var(--accent); font-size: 15px; line-height: 1.3; }
+  footer.doc-footer { color: var(--text-faint); font-size: 12.5px; margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border); }
+  @media (max-width: 880px) {
+    .layout { flex-direction: column; }
+    .sidebar { position: relative; width: 100%; flex: none; height: auto; }
+    .main { padding: 32px 20px 80px; }
+  }
+</style>
+
+<div class="layout">
+  <aside class="sidebar">
+    <p class="eyebrow">Blueprint do produto · Etapa 5</p>
+    <h1>ERS 3D</h1>
+    <p class="subtitle">Backlog, Sprints e Definição de Pronto</p>
+    <a class="backlink" href="https://claude.ai/code/artifact/3d3188e3-b978-431c-97d2-4f0fee358c75" target="_blank" rel="noopener">← Etapa 1 — Visão &amp; Arquitetura</a>
+    <a class="backlink" href="https://claude.ai/code/artifact/9cfe63b8-38ff-4a25-b106-79bbce441b25" target="_blank" rel="noopener">← Etapa 2 — Personas &amp; Histórias</a>
+    <a class="backlink" href="https://claude.ai/code/artifact/d8c7620f-468f-4153-b29b-bf8a2b01bcdd" target="_blank" rel="noopener">← Etapa 3 — Segurança &amp; Monitoramento</a>
+    <a class="backlink" href="https://claude.ai/code/artifact/e6fc186e-7be5-4b1e-a8e7-6d729cce1560" target="_blank" rel="noopener">← Etapa 4 — Wireframes &amp; Design System</a>
+    <nav>
+      <a href="#dependencias"><span class="n">01</span> Dependências entre épicos</a>
+      <a href="#sprints"><span class="n">02</span> Sequência completa de sprints</a>
+      <a href="#dod"><span class="n">03</span> Definição de Pronto</a>
+      <a href="#proximo"><span class="n">04</span> Próximo passo</a>
+    </nav>
+    <div class="meta">
+      <div>Equipe: PM · Tech Lead · QA</div>
+      <div>13 jul 2026 — v0.1</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="content">
+      <div class="doc-header">
+        <p class="kicker">Documento de planejamento — não é código</p>
+        <h2>A ordem de construção, e como saber que cada peça está pronta</h2>
+        <p>Etapa 5: fecha a sequência de planejamento — por que essa ordem de sprints, o que depende do quê, e o padrão mínimo de qualidade que toda entrega precisa atingir antes de ser considerada concluída. A implementação em si (Etapa 6) só começa depois da sua aprovação.</p>
+      </div>
+
+      <section id="dependencias">
+        <h3><span class="idx">01</span> Dependências entre épicos</h3>
+        <p class="lede">A ordem dos sprints não é arbitrária — cada módulo depende de dados reais do anterior para ser testável de verdade.</p>
+        <pre class="diagram">Fundação (auth, permissões, auditoria)
+   │
+   ▼
+Clientes ────────────────────┐
+   │                          │
+   ▼                          │
+Kanban CRM                    │
+   │                          │
+   ▼                          │
+Filamentos + Calculadora      │
+   │                          │
+   ▼                          │
+Orçamento (aprovação) ◄───────┘
+   │
+   ├──► Produção (ordem, reserva → consumo de filamento)
+   │        │
+   │        ▼
+   │     Qualidade (aprovação/reprovação, retrabalho)
+   │        │
+   │        ▼
+   │     Estoque de peças + Entrega
+   │
+   └──► Financeiro (conta a receber, baixa manual, fluxo de caixa)
+
+Dashboard ◄── consolida dados reais de todos os módulos acima (por isso vem por último)</pre>
+        <p>Consequência prática: <strong>Produção e Financeiro só podem começar depois que Orçamento estiver funcionando de ponta a ponta</strong> — ambos nascem da mesma transição (Negociação → Desenvolvimento). Tentar paralelizá-los antes disso geraria retrabalho.</p>
+      </section>
+
+      <section id="sprints">
+        <h3><span class="idx">02</span> Sequência completa de sprints</h3>
+        <p class="lede">Sprints de 2 semanas, estimativa relativa (P/M/G). Sprints 0–5 já detalhados na Etapa 1 — recapitulados aqui em uma linha para manter a sequência visível; 6–10 são novos.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Sprint</th><th>Foco</th><th>Est.</th></tr></thead>
+            <tbody>
+              <tr><td>0</td><td>Setup — repositório Next.js único, Neon, deploy inicial em Render</td><td>P</td></tr>
+              <tr><td>1</td><td>Auth &amp; permissões — Auth.js, RBAC por ação, auditoria transversal, shell da aplicação</td><td>M</td></tr>
+              <tr><td>2</td><td>Clientes — CRUD PF/PJ, duplicidade, página 360°</td><td>M</td></tr>
+              <tr><td>3</td><td>Kanban CRM — 6 colunas, drag-and-drop, transições validadas, histórico</td><td>G</td></tr>
+              <tr><td>4</td><td>Filamentos &amp; calculadora — estoque, motor de precificação, rejeição de percentuais ≥100%</td><td>G</td></tr>
+              <tr><td>5</td><td>Orçamento &amp; ciclo mensal — versionamento, aprovação, PDF, fechamento de ciclo</td><td>M</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="sprint">
+          <div class="sprint-head"><h5>Sprint 6 — Produção</h5><span class="est">G</span></div>
+          <ul>
+            <li>Ordem de produção gerada automaticamente na aprovação da negociação</li>
+            <li>Reserva de filamento na aprovação; conversão para consumo real ao concluir a impressão (política já decidida)</li>
+            <li>Apontamento de horas/material real, falhas e reimpressões</li>
+            <li>Contador de prazo (no prazo / próximo / atrasado) calculado, não digitado</li>
+            <li>Edição de job com devolução e novo consumo, em transação (caso crítico da Etapa 2)</li>
+          </ul>
+          <div class="dep">Depende de: Sprint 4 (estoque de filamento) + Sprint 5 (orçamento aprovado)</div>
+        </div>
+
+        <div class="sprint">
+          <div class="sprint-head"><h5>Sprint 7 — Qualidade</h5><span class="est">M</span></div>
+          <ul>
+            <li>Checklist configurável com evidência fotográfica</li>
+            <li>Resultado: aprovado / reprovado / aprovado com ressalva</li>
+            <li>Reprovação: motivo obrigatório, retorno automático a Desenvolvimento, novo ciclo de retrabalho com consumo adicional</li>
+            <li>Histórico completo de reprovações visível no card e no projeto</li>
+          </ul>
+          <div class="dep">Depende de: Sprint 6 (produção concluída gera o gatilho de qualidade)</div>
+        </div>
+
+        <div class="sprint">
+          <div class="sprint-head"><h5>Sprint 8 — Estoque de peças &amp; Entrega</h5><span class="est">M</span></div>
+          <ul>
+            <li>Geração de unidades/lote de peças ao concluir produção</li>
+            <li>Disponível / reservado / vendido / descartado — bloqueio de operação sem saldo</li>
+            <li>Registro de entrega: método, rastreio, checklist de embalagem</li>
+            <li>Regra de conclusão do pedido (qualidade + produção + entrega + financeiro conhecidos)</li>
+          </ul>
+          <div class="dep">Depende de: Sprint 7 (qualidade aprovada libera o estoque de peças)</div>
+        </div>
+
+        <div class="sprint">
+          <div class="sprint-head"><h5>Sprint 9 — Financeiro</h5><span class="est">G</span></div>
+          <ul>
+            <li>Conta a receber gerada na aprovação da negociação (status previsto, nunca receita já realizada)</li>
+            <li>Parcelas, baixa manual (Pix / maquininha), status (previsto/pendente/parcial/pago/vencido/cancelado/estornado)</li>
+            <li>Fluxo de caixa simples, separação lucro realizado vs. potencial em estoque</li>
+            <li>Acesso do Contador: leitura apenas, testado explicitamente negando escrita (caso crítico da Etapa 2)</li>
+          </ul>
+          <div class="dep">Depende de: Sprint 5 (orçamento aprovado gera a conta a receber)</div>
+        </div>
+
+        <div class="sprint">
+          <div class="sprint-head"><h5>Sprint 10 — Dashboard &amp; hardening</h5><span class="est">M</span></div>
+          <ul>
+            <li>Dashboard executivo consolidando KPIs de todos os módulos anteriores</li>
+            <li>Checklist de segurança pré-lançamento da Etapa 3 executado por completo</li>
+            <li>Bateria de casos críticos (Etapa 2, seção 05) rodada de ponta a ponta</li>
+            <li>Backup testado com restore real; deploy de produção no Render</li>
+          </ul>
+          <div class="dep">Depende de: todos os módulos anteriores terem dados reais para consolidar</div>
+        </div>
+      </section>
+
+      <section id="dod">
+        <h3><span class="idx">03</span> Definição de Pronto</h3>
+        <p class="lede">Nenhum módulo é considerado entregue sem passar por esta lista — vale para cada sprint acima, não só para o conjunto final.</p>
+        <ul class="checklist">
+          <li>Código organizado no módulo de domínio correto, sem acesso direto ao banco fora da camada de serviço</li>
+          <li>Migration criada e testada (aplicar e reverter)</li>
+          <li>Testes automatizados cobrindo os critérios de aceite do módulo (unitário + integração)</li>
+          <li>Caso crítico relacionado da Etapa 2, se houver, testado explicitamente</li>
+          <li>Permissão testada nos dois sentidos: acesso concedido e acesso negado</li>
+          <li>Ação relevante confirmada aparecendo em <code>audit_logs</code></li>
+          <li>Nenhum valor monetário tratado como float em nenhuma camada (banco, serviço, API, UI)</li>
+          <li>Estado vazio, de carregamento e de erro implementados — não só o caminho feliz</li>
+          <li>Responsivo verificado em desktop, tablet e mobile</li>
+          <li>Decisões técnicas e riscos remanescentes documentados junto da entrega</li>
+        </ul>
+      </section>
+
+      <section id="proximo">
+        <h3><span class="idx">04</span> Próximo passo</h3>
+        <div class="callout">
+          <span class="label">Aguardando aprovação</span>
+          <p>Com as Etapas 1–5 completas, a implementação (Etapa 6) começa pelo Sprint 0 assim que você confirmar. Dois itens seguem em aberto e não bloqueiam o início, mas vale registrar: a <strong>imagem de referência visual</strong> ainda não chegou (a Etapa 4 seguiu com a paleta e os tokens descritos em texto — ajustáveis quando ela chegar) e a decisão sobre <strong>agentes reais vs. simulados</strong> ainda não foi tomada.</p>
+        </div>
+      </section>
+
+      <footer class="doc-footer">
+        ERS 3D — Gestão de Soluções e Fabricações · Documento de planejamento, Etapa 5 · Fecha a sequência de planejamento (Etapas 1–5) definida no briefing original.
+      </footer>
+    </div>
+  </main>
+</div>

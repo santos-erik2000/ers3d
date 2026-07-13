@@ -1,0 +1,230 @@
+<title>ERS 3D — Segurança, LGPD e Monitoramento</title>
+<style>
+  :root {
+    --bg: #eef1f7; --surface: #ffffff; --surface-alt: #e4e9f3; --border: #d7deea; --border-strong: #b9c4d8;
+    --text: #1a2333; --text-muted: #57647a; --text-faint: #7c879b;
+    --accent: #2454e0; --accent-strong: #17348c; --accent-soft: #e5ecff;
+    --success: #12805c; --success-soft: #e1f4ec; --warning: #9a6300; --warning-soft: #fbeed2;
+    --danger: #b4293a; --danger-soft: #fbe4e6; --dev: #6a3fd6; --dev-soft: #ede6fb;
+    --neutral: #5c6779; --neutral-soft: #e9ecf2;
+    --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+    --sidebar-w: 280px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f141d; --surface: #171e2b; --surface-alt: #1c2434; --border: #2a3448; --border-strong: #38455c;
+      --text: #e8ecf4; --text-muted: #a3aec2; --text-faint: #7c879b;
+      --accent: #6f9bff; --accent-strong: #a9c2ff; --accent-soft: #1c2c55;
+      --success: #4fcf9d; --success-soft: #133329; --warning: #e3ac3f; --warning-soft: #3a2c0e;
+      --danger: #ef7a86; --danger-soft: #3a1a1f; --dev: #b49bff; --dev-soft: #2a2350;
+      --neutral: #a3aec2; --neutral-soft: #232c3d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141d; --surface: #171e2b; --surface-alt: #1c2434; --border: #2a3448; --border-strong: #38455c;
+    --text: #e8ecf4; --text-muted: #a3aec2; --text-faint: #7c879b;
+    --accent: #6f9bff; --accent-strong: #a9c2ff; --accent-soft: #1c2c55;
+    --success: #4fcf9d; --success-soft: #133329; --warning: #e3ac3f; --warning-soft: #3a2c0e;
+    --danger: #ef7a86; --danger-soft: #3a1a1f; --dev: #b49bff; --dev-soft: #2a2350;
+    --neutral: #a3aec2; --neutral-soft: #232c3d;
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f7; --surface: #ffffff; --surface-alt: #e4e9f3; --border: #d7deea; --border-strong: #b9c4d8;
+    --text: #1a2333; --text-muted: #57647a; --text-faint: #7c879b;
+    --accent: #2454e0; --accent-strong: #17348c; --accent-soft: #e5ecff;
+    --success: #12805c; --success-soft: #e1f4ec; --warning: #9a6300; --warning-soft: #fbeed2;
+    --danger: #b4293a; --danger-soft: #fbe4e6; --dev: #6a3fd6; --dev-soft: #ede6fb;
+    --neutral: #5c6779; --neutral-soft: #e9ecf2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); }
+  ::selection { background: var(--accent-soft); }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: var(--sidebar-w); flex: 0 0 var(--sidebar-w); background: linear-gradient(180deg, var(--accent-strong), var(--accent) 78%); color: #eef3ff; padding: 32px 24px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .sidebar .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #c3d3ff; margin: 0 0 6px; }
+  .sidebar h1 { font-family: var(--font-display); font-size: 26px; line-height: 1.2; margin: 0 0 4px; font-weight: 600; text-wrap: balance; }
+  .sidebar .subtitle { font-size: 13.5px; color: #d3ddff; margin: 0 0 20px; }
+  .sidebar .backlink { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #dbe4ff; text-decoration: none; margin-bottom: 8px; padding: 6px 10px; border: 1px solid rgba(255,255,255,0.25); border-radius: 8px; }
+  .sidebar .backlink:hover { background: rgba(255,255,255,0.12); }
+  .sidebar nav { display: flex; flex-direction: column; gap: 2px; margin-top: 16px; }
+  .sidebar nav a { color: #dbe4ff; text-decoration: none; font-size: 13.5px; padding: 7px 10px; border-radius: 7px; display: flex; gap: 9px; }
+  .sidebar nav a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .sidebar nav a .n { font-variant-numeric: tabular-nums; color: #b9c9ff; font-size: 12px; width: 18px; flex: none; }
+  .sidebar .meta { margin-top: 32px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 12px; color: #c3d3ff; }
+  .sidebar .meta div { margin-bottom: 4px; }
+  .main { flex: 1; min-width: 0; padding: 56px 48px 120px; }
+  .content { max-width: 880px; margin: 0 auto; }
+  .doc-header { margin-bottom: 48px; }
+  .doc-header .kicker { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin: 0 0 10px; }
+  .doc-header h2 { font-family: var(--font-display); font-size: 34px; margin: 0 0 10px; text-wrap: balance; font-weight: 600; }
+  .doc-header p { color: var(--text-muted); font-size: 16px; max-width: 62ch; margin: 0; }
+  section { margin-bottom: 52px; scroll-margin-top: 24px; }
+  section > h3 { font-family: var(--font-display); font-size: 23px; font-weight: 600; margin: 0 0 6px; display: flex; align-items: baseline; gap: 10px; }
+  section > h3 .idx { color: var(--text-faint); font-size: 15px; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+  section > .lede { color: var(--text-muted); margin: 0 0 20px; max-width: 66ch; }
+  h4 { font-size: 15px; margin: 24px 0 8px; color: var(--text); }
+  p { max-width: 70ch; }
+  ul, ol { padding-left: 22px; max-width: 68ch; }
+  li { margin-bottom: 6px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .card-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 14px; }
+  .callout { border-left: 3px solid var(--border-strong); background: var(--surface-alt); border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 10px 0; }
+  .callout p, .callout ul { margin: 0; }
+  .callout .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px; }
+  .callout.risk-high { border-left-color: var(--danger); background: var(--danger-soft); }
+  .callout.risk-high .label { color: var(--danger); }
+  .callout.pending { border-left-color: var(--warning); background: var(--warning-soft); }
+  .callout.pending .label { color: var(--warning); }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--neutral-soft); color: var(--neutral); }
+  .badge.dev { background: var(--dev-soft); color: var(--dev); }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; background: var(--surface); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--surface-alt); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td code, p code, li code { font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-alt); padding: 1px 5px; border-radius: 5px; }
+  .checklist { list-style: none; padding: 0; margin: 14px 0; display: flex; flex-direction: column; gap: 8px; }
+  .checklist li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+  .checklist li::before { content: "☐"; color: var(--accent); font-size: 15px; line-height: 1.3; }
+  footer.doc-footer { color: var(--text-faint); font-size: 12.5px; margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border); }
+  @media (max-width: 880px) {
+    .layout { flex-direction: column; }
+    .sidebar { position: relative; width: 100%; flex: none; height: auto; }
+    .main { padding: 32px 20px 80px; }
+  }
+</style>
+
+<div class="layout">
+  <aside class="sidebar">
+    <p class="eyebrow">Blueprint do produto · Etapa 3</p>
+    <h1>ERS 3D</h1>
+    <p class="subtitle">Segurança, LGPD e Monitoramento</p>
+    <a class="backlink" href="https://claude.ai/code/artifact/3d3188e3-b978-431c-97d2-4f0fee358c75" target="_blank" rel="noopener">← Etapa 1 — Visão &amp; Arquitetura</a>
+    <a class="backlink" href="https://claude.ai/code/artifact/9cfe63b8-38ff-4a25-b106-79bbce441b25" target="_blank" rel="noopener">← Etapa 2 — Personas &amp; Histórias</a>
+    <nav>
+      <a href="#autenticacao"><span class="n">01</span> Autenticação &amp; sessão</a>
+      <a href="#protecoes"><span class="n">02</span> Proteções da aplicação</a>
+      <a href="#segredos"><span class="n">03</span> Segredos &amp; configuração</a>
+      <a href="#auditoria"><span class="n">04</span> Logs de segurança &amp; auditoria</a>
+      <a href="#backup"><span class="n">05</span> Backup &amp; recuperação</a>
+      <a href="#lgpd"><span class="n">06</span> LGPD</a>
+      <a href="#monitoramento"><span class="n">07</span> Monitoramento &amp; operação</a>
+      <a href="#checklist"><span class="n">08</span> Checklist pré-lançamento</a>
+    </nav>
+    <div class="meta">
+      <div>Equipe: Tech Lead · QA</div>
+      <div>13 jul 2026 — v0.1</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="content">
+      <div class="doc-header">
+        <p class="kicker">Documento de planejamento — não é código</p>
+        <h2>Como o sistema se protege — e como sabemos se algo quebrou</h2>
+        <p>Etapa 3: aprofunda a estratégia de segurança e monitoramento sobre a arquitetura já decidida na Etapa 1 (Next.js único, Auth.js, Neon, R2, Render) — sem repetir o que já foi coberto lá.</p>
+      </div>
+
+      <section id="autenticacao">
+        <h3><span class="idx">01</span> Autenticação &amp; sessão</h3>
+        <ul>
+          <li>E-mail + senha via Auth.js (credentials provider) — sem SSO/OAuth no MVP, conforme decidido na Etapa 1.</li>
+          <li>Hash de senha com <strong>argon2</strong> (mais resistente a força bruta que bcrypt para hardware atual).</li>
+          <li>Sessão em cookie <code>httpOnly</code> + <code>Secure</code> + <code>SameSite=Lax</code>, expiração deslizante razoável (ex.: 8h de inatividade) — sem necessidade de refresh token separado nessa escala.</li>
+          <li><strong>Rate limiting</strong> no endpoint de login (ex.: 5 tentativas / 15 min por IP+e-mail) para mitigar força bruta.</li>
+          <li>Bloqueio/inativação de usuário pelo Admin em vez de exclusão — usuário bloqueado não consegue autenticar, mas seu histórico de autoria permanece íntegro na auditoria.</li>
+        </ul>
+      </section>
+
+      <section id="protecoes">
+        <h3><span class="idx">02</span> Proteções da aplicação</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Ameaça</th><th>Mitigação</th></tr></thead>
+            <tbody>
+              <tr><td>SQL Injection</td><td>Prisma parametriza toda query — nenhuma query SQL crua concatenada com input do usuário</td></tr>
+              <tr><td>XSS</td><td>React escapa output por padrão; nenhum <code>dangerouslySetInnerHTML</code> com conteúdo de usuário; cabeçalho <code>Content-Security-Policy</code> restritivo</td></tr>
+              <tr><td>CSRF</td><td>Cookie <code>SameSite=Lax</code> + verificação de origem nos Route Handlers/Server Actions que alteram estado</td></tr>
+              <tr><td>Entrada inválida</td><td>Todo boundary de entrada (formulário, API) validado com Zod antes de chegar à camada de domínio</td></tr>
+              <tr><td>Permissão só no front-end</td><td>Toda ação sensível é checada de novo no service de domínio no backend — o front-end reflete o resultado, nunca decide sozinho (ver Etapa 1, riscos técnicos)</td></tr>
+              <tr><td>Upload malicioso</td><td>Validação de extensão + MIME type real do arquivo (não só a extensão do nome); limite de tamanho; nome de arquivo gerado pelo sistema, nunca o nome original salvo como path</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="segredos">
+        <h3><span class="idx">03</span> Segredos &amp; configuração</h3>
+        <p>Nenhum segredo (senha de banco, chave de API, secret de sessão) no código-fonte ou versionado no git. Variáveis de ambiente configuradas diretamente no painel do Render por ambiente (dev/homologação/produção), com valores distintos entre eles — a chave de sessão de produção nunca é reaproveitada em homologação.</p>
+      </section>
+
+      <section id="auditoria">
+        <h3><span class="idx">04</span> Logs de segurança &amp; auditoria</h3>
+        <p>Complementa o interceptor de <code>audit_logs</code> já modelado na Etapa 1. Eventos de segurança específicos a registrar, além das operações de negócio:</p>
+        <ul>
+          <li>Login bem-sucedido e falho (com IP/contexto quando disponível)</li>
+          <li>Bloqueio/desbloqueio de usuário</li>
+          <li>Mudança de permissão de um usuário</li>
+          <li>Exportação de dados (relatórios, financeiro)</li>
+          <li>Correção administrativa de registro com justificativa (ROOT/Admin)</li>
+        </ul>
+      </section>
+
+      <section id="backup">
+        <h3><span class="idx">05</span> Backup &amp; recuperação</h3>
+        <ul>
+          <li>Neon mantém backups automáticos com point-in-time recovery no free tier — validar o período de retenção coberto e documentar.</li>
+          <li>R2 (arquivos): habilitar versionamento de objeto para proteger contra sobrescrita/exclusão acidental de anexos.</li>
+          <li><strong>Teste de restore</strong> deve fazer parte do checklist antes do primeiro lançamento em produção — um backup nunca testado é uma suposição, não uma garantia.</li>
+          <li>Nenhuma migration destrutiva roda em produção sem esse backup confirmado antes (já registrado como regra na Etapa 1).</li>
+        </ul>
+      </section>
+
+      <section id="lgpd">
+        <h3><span class="idx">06</span> LGPD</h3>
+        <div class="callout pending">
+          <span class="label">Pendência conhecida</span>
+          <p>Não existe hoje uma política de privacidade/texto de consentimento (confirmado na Etapa 1). O que segue é a <em>infraestrutura técnica</em> que o sistema já pode oferecer — o conteúdo jurídico do texto de consentimento continua sendo uma tarefa fora do desenvolvimento, a ser resolvida antes do lançamento em produção.</p>
+        </div>
+        <ul>
+          <li><strong>Consentimento:</strong> campo de aceite + timestamp no cadastro do cliente, pronto para referenciar o texto jurídico assim que existir.</li>
+          <li><strong>Exportação de dados pessoais:</strong> endpoint/ação que reúne os dados de um cliente específico (cadastro, interações, pedidos) — infraestrutura simples de implementar, dado que a página 360° do cliente já centraliza essa mesma informação.</li>
+          <li><strong>Correção:</strong> já coberta pelo CRUD normal de cliente com auditoria.</li>
+          <li><strong>Retenção e exclusão:</strong> exclusão lógica por padrão (Etapa 1) — para uma eventual solicitação de exclusão real, definir período de retenção mínimo (obrigações fiscais/contratuais) antes de anonimizar de fato.</li>
+        </ul>
+      </section>
+
+      <section id="monitoramento">
+        <h3><span class="idx">07</span> Monitoramento &amp; operação</h3>
+        <div class="card-grid">
+          <div class="card"><h4 style="margin-top:0">Erros</h4><p style="color:var(--text-muted); font-size:13.5px">Sentry (free tier, 5k eventos/mês) capturando exceções não tratadas no servidor e no cliente, com contexto de usuário/rota.</p></div>
+          <div class="card"><h4 style="margin-top:0">Disponibilidade</h4><p style="color:var(--text-muted); font-size:13.5px">Endpoint <code>/health</code> simples (verifica conexão com banco) — usado pelo próprio Render para decidir se a instância está saudável.</p></div>
+          <div class="card"><h4 style="margin-top:0">Ambientes</h4><p style="color:var(--text-muted); font-size:13.5px">Local (Docker/dev) → Homologação (Render, branch <code>staging</code>) → Produção (Render, branch <code>main</code>), com bancos Neon separados por ambiente.</p></div>
+          <div class="card"><h4 style="margin-top:0">Rollback</h4><p style="color:var(--text-muted); font-size:13.5px">Redeploy do commit anterior no Render (histórico de deploys nativo da plataforma) — sem infraestrutura extra necessária nessa escala.</p></div>
+        </div>
+      </section>
+
+      <section id="checklist">
+        <h3><span class="idx">08</span> Checklist pré-lançamento</h3>
+        <ul class="checklist">
+          <li>Backup do banco confirmado e restore testado ao menos uma vez</li>
+          <li>Variáveis de ambiente de produção revisadas (nenhum segredo de dev reaproveitado)</li>
+          <li>Rate limiting de login ativo</li>
+          <li>Todas as rotas sensíveis validadas com teste de permissão negada (não só permissão concedida)</li>
+          <li>CSP e cabeçalhos de segurança configurados</li>
+          <li>Texto de consentimento LGPD definido e vinculado ao campo já existente no cadastro</li>
+          <li>Sentry recebendo eventos de teste em produção antes do primeiro uso real</li>
+          <li>Endpoint <code>/health</code> respondendo e monitorado</li>
+        </ul>
+      </section>
+
+      <footer class="doc-footer">
+        ERS 3D — Gestão de Soluções e Fabricações · Documento de planejamento, Etapa 3 · Complementa a arquitetura da Etapa 1.
+      </footer>
+    </div>
+  </main>
+</div>

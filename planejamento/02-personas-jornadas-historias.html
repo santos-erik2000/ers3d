@@ -1,0 +1,588 @@
+<title>ERS 3D — Personas, Jornadas e Histórias</title>
+<style>
+  :root {
+    --bg: #eef1f7;
+    --surface: #ffffff;
+    --surface-alt: #e4e9f3;
+    --border: #d7deea;
+    --border-strong: #b9c4d8;
+    --text: #1a2333;
+    --text-muted: #57647a;
+    --text-faint: #7c879b;
+    --accent: #2454e0;
+    --accent-strong: #17348c;
+    --accent-soft: #e5ecff;
+    --success: #12805c;
+    --success-soft: #e1f4ec;
+    --warning: #9a6300;
+    --warning-soft: #fbeed2;
+    --danger: #b4293a;
+    --danger-soft: #fbe4e6;
+    --dev: #6a3fd6;
+    --dev-soft: #ede6fb;
+    --neutral: #5c6779;
+    --neutral-soft: #e9ecf2;
+    --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+    --sidebar-w: 280px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f141d; --surface: #171e2b; --surface-alt: #1c2434; --border: #2a3448; --border-strong: #38455c;
+      --text: #e8ecf4; --text-muted: #a3aec2; --text-faint: #7c879b;
+      --accent: #6f9bff; --accent-strong: #a9c2ff; --accent-soft: #1c2c55;
+      --success: #4fcf9d; --success-soft: #133329; --warning: #e3ac3f; --warning-soft: #3a2c0e;
+      --danger: #ef7a86; --danger-soft: #3a1a1f; --dev: #b49bff; --dev-soft: #2a2350;
+      --neutral: #a3aec2; --neutral-soft: #232c3d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141d; --surface: #171e2b; --surface-alt: #1c2434; --border: #2a3448; --border-strong: #38455c;
+    --text: #e8ecf4; --text-muted: #a3aec2; --text-faint: #7c879b;
+    --accent: #6f9bff; --accent-strong: #a9c2ff; --accent-soft: #1c2c55;
+    --success: #4fcf9d; --success-soft: #133329; --warning: #e3ac3f; --warning-soft: #3a2c0e;
+    --danger: #ef7a86; --danger-soft: #3a1a1f; --dev: #b49bff; --dev-soft: #2a2350;
+    --neutral: #a3aec2; --neutral-soft: #232c3d;
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f7; --surface: #ffffff; --surface-alt: #e4e9f3; --border: #d7deea; --border-strong: #b9c4d8;
+    --text: #1a2333; --text-muted: #57647a; --text-faint: #7c879b;
+    --accent: #2454e0; --accent-strong: #17348c; --accent-soft: #e5ecff;
+    --success: #12805c; --success-soft: #e1f4ec; --warning: #9a6300; --warning-soft: #fbeed2;
+    --danger: #b4293a; --danger-soft: #fbe4e6; --dev: #6a3fd6; --dev-soft: #ede6fb;
+    --neutral: #5c6779; --neutral-soft: #e9ecf2;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); }
+  ::selection { background: var(--accent-soft); }
+
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: var(--sidebar-w); flex: 0 0 var(--sidebar-w);
+    background: linear-gradient(180deg, var(--accent-strong), var(--accent) 78%);
+    color: #eef3ff; padding: 32px 24px 32px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .sidebar .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #c3d3ff; margin: 0 0 6px; }
+  .sidebar h1 { font-family: var(--font-display); font-size: 26px; line-height: 1.2; margin: 0 0 4px; font-weight: 600; text-wrap: balance; }
+  .sidebar .subtitle { font-size: 13.5px; color: #d3ddff; margin: 0 0 20px; }
+  .sidebar .backlink {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #dbe4ff;
+    text-decoration: none; margin-bottom: 24px; padding: 6px 10px; border: 1px solid rgba(255,255,255,0.25); border-radius: 8px;
+  }
+  .sidebar .backlink:hover { background: rgba(255,255,255,0.12); }
+  .sidebar nav { display: flex; flex-direction: column; gap: 2px; }
+  .sidebar nav a { color: #dbe4ff; text-decoration: none; font-size: 13.5px; padding: 7px 10px; border-radius: 7px; display: flex; gap: 9px; }
+  .sidebar nav a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .sidebar nav a .n { font-variant-numeric: tabular-nums; color: #b9c9ff; font-size: 12px; width: 18px; flex: none; }
+  .sidebar .meta { margin-top: 32px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 12px; color: #c3d3ff; }
+  .sidebar .meta div { margin-bottom: 4px; }
+
+  .main { flex: 1; min-width: 0; padding: 56px 48px 120px; }
+  .content { max-width: 880px; margin: 0 auto; }
+
+  .doc-header { margin-bottom: 48px; }
+  .doc-header .kicker { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin: 0 0 10px; }
+  .doc-header h2 { font-family: var(--font-display); font-size: 34px; margin: 0 0 10px; text-wrap: balance; font-weight: 600; }
+  .doc-header p { color: var(--text-muted); font-size: 16px; max-width: 62ch; margin: 0; }
+
+  section { margin-bottom: 52px; scroll-margin-top: 24px; }
+  section > h3 { font-family: var(--font-display); font-size: 23px; font-weight: 600; margin: 0 0 6px; display: flex; align-items: baseline; gap: 10px; }
+  section > h3 .idx { color: var(--text-faint); font-size: 15px; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+  section > .lede { color: var(--text-muted); margin: 0 0 20px; max-width: 66ch; }
+  h4 { font-size: 15px; margin: 26px 0 8px; color: var(--text); }
+  p { max-width: 70ch; }
+  ul, ol { padding-left: 22px; max-width: 68ch; }
+  li { margin-bottom: 6px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .card-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 14px; }
+
+  .callout { border-left: 3px solid var(--border-strong); background: var(--surface-alt); border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 10px 0; }
+  .callout p, .callout ul { margin: 0; }
+  .callout .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--neutral-soft); color: var(--neutral); }
+  .badge.dev { background: var(--dev-soft); color: var(--dev); }
+  .badge.must { background: var(--accent-soft); color: var(--accent-strong); }
+  .badge.should { background: var(--neutral-soft); color: var(--neutral); }
+  .badge.could { background: transparent; color: var(--text-faint); border: 1px solid var(--border-strong); }
+  .badge.crit { background: var(--danger-soft); color: var(--danger); }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; background: var(--surface); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--surface-alt); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td code, p code, li code { font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-alt); padding: 1px 5px; border-radius: 5px; }
+
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0; }
+  .flow .step { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; font-weight: 600; }
+  .flow .arrow { color: var(--text-faint); font-size: 15px; }
+
+  .persona { display: grid; grid-template-columns: 56px 1fr; gap: 16px; border: 1px solid var(--border); background: var(--surface); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; }
+  .persona .avatar {
+    width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-size: 22px; font-weight: 600; color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  }
+  .persona h5 { margin: 0 0 2px; font-size: 16.5px; }
+  .persona .role { font-size: 12.5px; color: var(--accent); font-weight: 600; margin-bottom: 10px; }
+  .persona .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin-top: 10px; }
+  .persona .cols h6 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin: 0 0 6px; }
+  .persona .cols ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--text-muted); }
+  .persona .cols li { margin-bottom: 3px; }
+
+  .gwt { border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; }
+  .gwt-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .gwt-head h5 { margin: 0; font-size: 14.5px; }
+  .gwt-head .id { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-faint); }
+  .gwt dl { display: grid; grid-template-columns: 72px 1fr; gap: 4px 12px; margin: 0; font-size: 13.5px; }
+  .gwt dt { color: var(--text-faint); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding-top: 2px; }
+  .gwt dd { margin: 0; color: var(--text); }
+
+  hr.rule { border: none; border-top: 1px solid var(--border); margin: 44px 0; }
+  footer.doc-footer { color: var(--text-faint); font-size: 12.5px; margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border); }
+
+  @media (max-width: 880px) {
+    .layout { flex-direction: column; }
+    .sidebar { position: relative; width: 100%; flex: none; height: auto; }
+    .main { padding: 32px 20px 80px; }
+    .persona { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="layout">
+  <aside class="sidebar">
+    <p class="eyebrow">Blueprint do produto · Etapa 2</p>
+    <h1>ERS 3D</h1>
+    <p class="subtitle">Personas, jornadas e histórias</p>
+    <a class="backlink" href="https://claude.ai/code/artifact/3d3188e3-b978-431c-97d2-4f0fee358c75" target="_blank" rel="noopener">← Etapa 1 — Visão &amp; Arquitetura</a>
+    <nav style="margin-bottom:18px;">
+      <a href="https://claude.ai/code/artifact/d8c7620f-468f-4153-b29b-bf8a2b01bcdd" target="_blank" rel="noopener">Etapa 3 — Segurança &amp; Monitoramento →</a>
+      <a href="https://claude.ai/code/artifact/e6fc186e-7be5-4b1e-a8e7-6d729cce1560" target="_blank" rel="noopener">Etapa 4 — Wireframes &amp; Design System →</a>
+      <a href="https://claude.ai/code/artifact/2f3e339e-c606-407f-8857-69937f53aebe" target="_blank" rel="noopener">Etapa 5 — Backlog &amp; Sprints →</a>
+    </nav>
+    <nav>
+      <a href="#personas"><span class="n">01</span> Personas</a>
+      <a href="#jornadas"><span class="n">02</span> Jornadas</a>
+      <a href="#fluxos"><span class="n">03</span> Fluxos operacionais</a>
+      <a href="#historias"><span class="n">04</span> Histórias de usuário</a>
+      <a href="#criterios"><span class="n">05</span> Critérios de aceite críticos</a>
+      <a href="#transicoes"><span class="n">06</span> Regras de transição</a>
+    </nav>
+    <div class="meta">
+      <div>Equipe: PM · Dev · QA · Design</div>
+      <div>13 jul 2026 — v0.1</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="content">
+
+      <div class="doc-header">
+        <p class="kicker">Documento de planejamento — não é código</p>
+        <h2>Quem usa o sistema e como ele se comporta no dia a dia</h2>
+        <p>Etapa 2: personas, jornadas ponta a ponta, fluxos operacionais que complementam o funil do Kanban, backlog de histórias por épico e os critérios de aceite dos casos mais arriscados (a lista da seção 25 do briefing original).</p>
+      </div>
+
+      <section id="personas">
+        <h3><span class="idx">01</span> Personas</h3>
+        <p class="lede">Mapeadas aos perfis de permissão definidos na Etapa 1 — inclusive os que ainda não existem como usuário hoje (Comercial, Técnico), já que a operação pode crescer.</p>
+
+        <div class="persona">
+          <div class="avatar">E</div>
+          <div>
+            <h5>Erik — Fundador</h5>
+            <div class="role">Perfil: ADMIN / ROOT</div>
+            <div class="cols">
+              <div><h6>Objetivo</h6><ul><li>Ver o negócio inteiro num só lugar, sem perguntar a ninguém</li><li>Aprovar negociações e decidir prioridades</li></ul></div>
+              <div><h6>Frustração hoje</h6><ul><li>Informação espalhada, decisão de cabeça sem dado consolidado</li></ul></div>
+              <div><h6>Usa no sistema</h6><ul><li>Dashboard executivo</li><li>Aprovação de orçamento</li><li>Gestão de usuários e permissões</li></ul></div>
+              <div><h6>Dispositivo</h6><ul><li>Desktop, tablet ocasional</li></ul></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="persona">
+          <div class="avatar">C</div>
+          <div>
+            <h5>Atendente Comercial</h5>
+            <div class="role">Perfil futuro: Comercial (hoje operado pelo próprio Erik)</div>
+            <div class="cols">
+              <div><h6>Objetivo</h6><ul><li>Fechar negociação rápido sem perder contexto do cliente</li></ul></div>
+              <div><h6>Frustração hoje</h6><ul><li>Esquecer de retornar um lead, não saber o status real do orçamento</li></ul></div>
+              <div><h6>Usa no sistema</h6><ul><li>Cadastro de cliente, Kanban (Proposta/Negociação)</li><li>Calculadora 3D para gerar orçamento</li></ul></div>
+              <div><h6>Dispositivo</h6><ul><li>Desktop principal, celular para consulta rápida</li></ul></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="persona">
+          <div class="avatar">T</div>
+          <div>
+            <h5>Operador de Produção</h5>
+            <div class="role">Perfil futuro: Técnico</div>
+            <div class="cols">
+              <div><h6>Objetivo</h6><ul><li>Saber exatamente o que imprimir e registrar o que aconteceu sem enrolação</li></ul></div>
+              <div><h6>Frustração hoje</h6><ul><li>Retrabalho não documentado, prioridade pouco clara</li></ul></div>
+              <div><h6>Usa no sistema</h6><ul><li>Ordem de produção, checklist de qualidade</li><li>Apontamento de horas e material real</li></ul></div>
+              <div><h6>Dispositivo</h6><ul><li>Tablet no chão de fábrica</li></ul></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="persona">
+          <div class="avatar">$</div>
+          <div>
+            <h5>Contador</h5>
+            <div class="role">Perfil: CONTADOR (somente leitura financeira)</div>
+            <div class="cols">
+              <div><h6>Objetivo</h6><ul><li>Enxergar receita, despesa e fluxo de caixa sem depender de terceiros para extrair relatório</li></ul></div>
+              <div><h6>Frustração hoje</h6><ul><li>Acesso amplo demais (risco) ou de menos (trabalho travado)</li></ul></div>
+              <div><h6>Usa no sistema</h6><ul><li>Contas a receber/pagar, fluxo de caixa, exportações</li><li>Nunca edita — só lê</li></ul></div>
+              <div><h6>Dispositivo</h6><ul><li>Desktop</li></ul></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="jornadas">
+        <h3><span class="idx">02</span> Jornadas</h3>
+
+        <h4>Jornada comercial — do lead ao orçamento aprovado</h4>
+        <div class="flow">
+          <span class="step">Contato chega</span><span class="arrow">→</span>
+          <span class="step">Cadastro / checagem de duplicidade</span><span class="arrow">→</span>
+          <span class="step">Briefing na Proposta</span><span class="arrow">→</span>
+          <span class="step">Cálculo &amp; orçamento</span><span class="arrow">→</span>
+          <span class="step">Negociação</span><span class="arrow">→</span>
+          <span class="step">Aprovação</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Etapa</th><th>Ação da Atendente</th><th>Risco se falhar</th></tr></thead>
+            <tbody>
+              <tr><td>Contato chega</td><td>Registra rapidamente, mesmo sem todos os dados ainda</td><td>Lead esfria enquanto se decide onde anotar</td></tr>
+              <tr><td>Cadastro</td><td>Sistema alerta possível duplicidade antes de salvar</td><td>Cliente duplicado gera histórico fragmentado</td></tr>
+              <tr><td>Briefing</td><td>Anexa arquivos, define quantidade/prazo/aplicação</td><td>Orçamento errado por falta de informação técnica</td></tr>
+              <tr><td>Cálculo</td><td>Usa a calculadora com os filamentos certos</td><td>Preço abaixo do custo real, prejuízo silencioso</td></tr>
+              <tr><td>Negociação</td><td>Registra desconto, condição, validade — nova versão se mudar</td><td>Perda de histórico do que foi realmente prometido ao cliente</td></tr>
+              <tr><td>Aprovação</td><td>Confirma aceite, sistema gera conta a receber</td><td>Sem essa etapa clara, "aprovado" vira sinônimo de "pago" por engano</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>Jornada de produção — da ordem ao produto pronto</h4>
+        <div class="flow">
+          <span class="step">Ordem de produção criada</span><span class="arrow">→</span>
+          <span class="step">Reserva de filamento</span><span class="arrow">→</span>
+          <span class="step">Impressão</span><span class="arrow">→</span>
+          <span class="step">Apontamento real</span><span class="arrow">→</span>
+          <span class="step">Qualidade</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Etapa</th><th>Ação do Operador</th><th>Risco se falhar</th></tr></thead>
+            <tbody>
+              <tr><td>Ordem criada</td><td>Vê impressora designada, prazo, material estimado</td><td>Ambiguidade sobre qual job tem prioridade</td></tr>
+              <tr><td>Impressão</td><td>Atualiza status (no prazo / próximo / atrasado é automático)</td><td>Atraso só é percebido quando já é tarde</td></tr>
+              <tr><td>Apontamento real</td><td>Registra horas e gramas reais, falhas e reimpressões</td><td>Margem por projeto fica incorreta nos relatórios</td></tr>
+              <tr><td>Qualidade</td><td>Roda checklist com evidência fotográfica</td><td>Peça com defeito chega ao cliente</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>Jornada do cliente (não é usuário do sistema, mas define os pontos de contato)</h4>
+        <div class="flow">
+          <span class="step">Primeiro contato</span><span class="arrow">→</span>
+          <span class="step">Recebe orçamento (PDF)</span><span class="arrow">→</span>
+          <span class="step">Acompanha prazo (informal, por enquanto)</span><span class="arrow">→</span>
+          <span class="step">Recebe entrega</span><span class="arrow">→</span>
+          <span class="step">Histórico para próxima compra</span>
+        </div>
+        <p style="color:var(--text-muted); font-size:13.5px">Portal do cliente (autoatendimento) está fora do MVP — ver Etapa 1, seção 07. Até lá, o "acompanhamento de prazo" do cliente é feito manualmente pela Atendente Comercial usando a página 360° dele.</p>
+      </section>
+
+      <section id="fluxos">
+        <h3><span class="idx">03</span> Fluxos operacionais</h3>
+        <p class="lede">Complementam o fluxo macro do Kanban (já detalhado na Etapa 1) com processos internos que atravessam mais de uma etapa.</p>
+
+        <h4>Detecção de duplicidade de cliente</h4>
+        <div class="flow">
+          <span class="step">Usuário preenche cadastro</span><span class="arrow">→</span>
+          <span class="step">Sistema busca por e-mail/telefone/CPF-CNPJ</span><span class="arrow">→</span>
+          <span class="step">Encontrou match?</span><span class="arrow">→</span>
+          <span class="step">Alerta antes de salvar</span>
+        </div>
+        <p>Se houver match, o usuário decide: abrir o cliente existente ou confirmar que é mesmo um novo cadastro (ex.: duas pessoas com telefone comercial compartilhado). A decisão fica registrada — nunca é um bloqueio silencioso.</p>
+
+        <h4>Versionamento de orçamento</h4>
+        <div class="flow">
+          <span class="step">Orçamento v1 enviado</span><span class="arrow">→</span>
+          <span class="step">Cliente pede ajuste</span><span class="arrow">→</span>
+          <span class="step">Nova versão v2 (v1 preservada)</span><span class="arrow">→</span>
+          <span class="step">Aceite registrado na versão vigente</span>
+        </div>
+        <p>Nenhuma versão é sobrescrita. A negociação sempre aponta para a versão vigente, mas todas ficam consultáveis no histórico do cliente.</p>
+
+        <h4>Reprovação de qualidade → retrabalho</h4>
+        <div class="flow">
+          <span class="step">Checklist reprovado</span><span class="arrow">→</span>
+          <span class="step">Motivo obrigatório</span><span class="arrow">→</span>
+          <span class="step">Volta para Desenvolvimento</span><span class="arrow">→</span>
+          <span class="step">Novo consumo de material (retrabalho)</span><span class="arrow">→</span>
+          <span class="step">Novo checklist</span>
+        </div>
+        <p>A reprovação original nunca é apagada — o card acumula quantos ciclos de retrabalho forem necessários, todos visíveis no histórico.</p>
+
+        <h4>Fechamento de ciclo mensal</h4>
+        <div class="flow">
+          <span class="step">Fim do mês</span><span class="arrow">→</span>
+          <span class="step">Resumo do ciclo (métricas, cards por etapa)</span><span class="arrow">→</span>
+          <span class="step">Confirmação do Admin</span><span class="arrow">→</span>
+          <span class="step">Cards abertos: transportar ou marcar pendência</span><span class="arrow">→</span>
+          <span class="step">Novo ciclo aberto</span>
+        </div>
+        <p>Fechamento nunca é automático nem destrutivo — exige confirmação explícita, e todo card em aberto precisa de uma decisão (seção 08 da Etapa 1).</p>
+
+        <h4>Edição de job com estoque já reservado</h4>
+        <div class="flow">
+          <span class="step">Job existente é editado</span><span class="arrow">→</span>
+          <span class="step">Devolve gramas antigas (simulado)</span><span class="arrow">→</span>
+          <span class="step">Valida novo consumo</span><span class="arrow">→</span>
+          <span class="step">Aplica e registra movimentações</span><span class="arrow">→</span>
+          <span class="step">Tudo dentro de uma transação</span>
+        </div>
+        <p>Se qualquer passo falhar (ex.: novo consumo excede saldo), a operação inteira é revertida — o estoque nunca fica em estado intermediário.</p>
+      </section>
+
+      <section id="historias">
+        <h3><span class="idx">04</span> Histórias de usuário por épico</h3>
+        <p class="lede">Prioridade: <span class="badge must">essencial</span> não sai do MVP sem isso · <span class="badge should">importante</span> forte candidato ao MVP, mas negociável · <span class="badge could">desejável</span> primeira coisa a cortar se o prazo apertar.</p>
+
+        <h4>E1 · Autenticação &amp; Permissões</h4>
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>História</th><th>Prioridade</th></tr></thead>
+          <tbody>
+            <tr><td><code>AUTH-1</code></td><td>Como usuário, quero entrar com e-mail e senha para acessar só o que meu perfil permite.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>AUTH-2</code></td><td>Como Admin, quero criar/bloquear usuários e atribuir permissões por ação, não por nome de perfil fixo.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>AUTH-3</code></td><td>Como Contador, quero acessar só os módulos financeiros em modo leitura.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>AUTH-4</code></td><td>Como qualquer usuário, quero recuperar minha senha com segurança se esquecer.</td><td><span class="badge should">importante</span></td></tr>
+          </tbody>
+        </table></div>
+
+        <h4>E2 · Clientes</h4>
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>História</th><th>Prioridade</th></tr></thead>
+          <tbody>
+            <tr><td><code>CUST-1</code></td><td>Como Atendente, quero cadastrar cliente PF/PJ com os dados essenciais.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>CUST-2</code></td><td>Como Atendente, quero ser avisada de possível duplicidade antes de salvar.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>CUST-3</code></td><td>Como Atendente ou Admin, quero ver a página 360° do cliente com todo o histórico consolidado.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>CUST-4</code></td><td>Como Atendente, quero marcar "empresa" do cliente como uma tag simples para filtrar depois.</td><td><span class="badge should">importante</span></td></tr>
+          </tbody>
+        </table></div>
+
+        <h4>E3 · Kanban / CRM</h4>
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>História</th><th>Prioridade</th></tr></thead>
+          <tbody>
+            <tr><td><code>CRM-1</code></td><td>Como Atendente, quero ver o quadro com as 6 etapas e arrastar cards entre elas.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>CRM-2</code></td><td>Como sistema, preciso bloquear uma transição se as pré-condições da etapa de destino não forem cumpridas.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>CRM-3</code></td><td>Como qualquer usuário, quero ver há quantos dias um card está numa etapa, e um alerta visual se estiver atrasado.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>CRM-4</code></td><td>Como Admin, quero filtrar o quadro por responsável, cliente, prioridade e atrasados.</td><td><span class="badge should">importante</span></td></tr>
+            <tr><td><code>CRM-5</code></td><td>Como Admin, quero fechar o ciclo mensal com resumo e decidir o destino dos cards em aberto.</td><td><span class="badge must">essencial</span></td></tr>
+          </tbody>
+        </table></div>
+
+        <h4>E4 · Calculadora &amp; Orçamento</h4>
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>História</th><th>Prioridade</th></tr></thead>
+          <tbody>
+            <tr><td><code>CALC-1</code></td><td>Como Atendente, quero cadastrar filamentos com preço/kg e estoque disponível.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>CALC-2</code></td><td>Como Atendente, quero criar um job de cálculo selecionando filamentos e parâmetros, e ver o preço final.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>CALC-3</code></td><td>Como sistema, preciso rejeitar o cálculo se manutenção%+segurança%+lucro% ≥ 100%, com erro claro.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>CALC-4</code></td><td>Como Atendente, quero gerar um orçamento a partir do job calculado, com versionamento.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>CALC-5</code></td><td>Como Atendente, quero exportar o orçamento em PDF para enviar ao cliente.</td><td><span class="badge should">importante</span></td></tr>
+          </tbody>
+        </table></div>
+
+        <h4>E5 · Produção &amp; Estoque de filamento</h4>
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>História</th><th>Prioridade</th></tr></thead>
+          <tbody>
+            <tr><td><code>PROD-1</code></td><td>Como sistema, ao aprovar a negociação preciso reservar o filamento estimado do job.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>PROD-2</code></td><td>Como Operador, quero ver a ordem de produção com impressora, prazo e material previsto.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>PROD-3</code></td><td>Como Operador, quero apontar horas e gramas reais ao concluir a impressão, convertendo a reserva em consumo.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>PROD-4</code></td><td>Como Admin, quero ser alertado quando um filamento estiver abaixo do estoque mínimo.</td><td><span class="badge should">importante</span></td></tr>
+            <tr><td><code>PROD-5</code></td><td>Como sistema, preciso impedir qualquer operação que resulte em saldo negativo de filamento.</td><td><span class="badge must">essencial</span></td></tr>
+          </tbody>
+        </table></div>
+
+        <h4>E6 · Qualidade</h4>
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>História</th><th>Prioridade</th></tr></thead>
+          <tbody>
+            <tr><td><code>QUAL-1</code></td><td>Como Operador, quero rodar um checklist configurável com evidência fotográfica antes de liberar para entrega.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>QUAL-2</code></td><td>Como Operador, ao reprovar preciso registrar motivo e o card volta automaticamente para Desenvolvimento.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>QUAL-3</code></td><td>Como Admin, quero ver o histórico completo de reprovações e retrabalhos de um projeto.</td><td><span class="badge should">importante</span></td></tr>
+          </tbody>
+        </table></div>
+
+        <h4>E7 · Estoque de peças &amp; Entrega</h4>
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>História</th><th>Prioridade</th></tr></thead>
+          <tbody>
+            <tr><td><code>INV-1</code></td><td>Como sistema, ao concluir produção preciso gerar as unidades/lote no estoque de peças.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>INV-2</code></td><td>Como Admin, quero vender/descartar peças, mas nunca abaixo de zero disponível.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>DEL-1</code></td><td>Como Operador, quero registrar o método de entrega, rastreio e checklist de embalagem.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>DEL-2</code></td><td>Como sistema, só posso concluir o pedido se qualidade aprovada + produção finalizada + entrega registrada + financeiro conhecido.</td><td><span class="badge must">essencial</span></td></tr>
+          </tbody>
+        </table></div>
+
+        <h4>E8 · Financeiro</h4>
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>História</th><th>Prioridade</th></tr></thead>
+          <tbody>
+            <tr><td><code>FIN-1</code></td><td>Como sistema, ao aprovar negociação preciso gerar conta a receber (status previsto), nunca receita já realizada.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>FIN-2</code></td><td>Como Admin, quero dar baixa manual num pagamento (Pix ou maquininha) e ver o saldo pendente atualizar.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>FIN-3</code></td><td>Como Contador, quero ver fluxo de caixa e contas a receber sem poder editar nada.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>FIN-4</code></td><td>Como Admin, quero ver lucro realizado separado do lucro potencial em estoque.</td><td><span class="badge must">essencial</span></td></tr>
+          </tbody>
+        </table></div>
+
+        <h4>E9 · Dashboard</h4>
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>História</th><th>Prioridade</th></tr></thead>
+          <tbody>
+            <tr><td><code>DASH-1</code></td><td>Como Admin, quero ver faturamento, receita recebida/pendente, projetos atrasados e estoque baixo num único painel.</td><td><span class="badge must">essencial</span></td></tr>
+            <tr><td><code>DASH-2</code></td><td>Como Admin, quero filtrar o dashboard por período, cliente e responsável.</td><td><span class="badge should">importante</span></td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section id="criterios">
+        <h3><span class="idx">05</span> Critérios de aceite — casos críticos</h3>
+        <p class="lede">Cobrem os cenários de maior risco levantados pelo QA (soma de percentuais, concorrência de estoque, idempotência, alteração de orçamento aprovado etc.). Nenhum desses módulos é considerado pronto sem esse teste passando.</p>
+
+        <div class="gwt">
+          <div class="gwt-head"><h5>Rejeitar cálculo quando percentuais somam 100% ou mais</h5><span class="id"><span class="badge crit">crítico</span> CALC-3</span></div>
+          <dl>
+            <dt>Dado</dt><dd>que a Atendente está criando um job de cálculo</dd>
+            <dt>Quando</dt><dd>manutenção% + segurança% + lucro% for ≥ 100%</dd>
+            <dt>Então</dt><dd>o sistema rejeita o cálculo com uma mensagem clara explicando que a soma precisa ser inferior a 100%, e nenhum job é salvo</dd>
+          </dl>
+        </div>
+
+        <div class="gwt">
+          <div class="gwt-head"><h5>Impedir consumo/reserva de filamento sem saldo</h5><span class="id"><span class="badge crit">crítico</span> PROD-5</span></div>
+          <dl>
+            <dt>Dado</dt><dd>que um filamento tem 200g disponíveis</dd>
+            <dt>Quando</dt><dd>um job tenta reservar 250g</dd>
+            <dt>Então</dt><dd>a operação é bloqueada, nenhuma movimentação é criada, e o saldo permanece 200g — nunca fica negativo</dd>
+          </dl>
+        </div>
+
+        <div class="gwt">
+          <div class="gwt-head"><h5>Editar job já com estoque reservado</h5><span class="id"><span class="badge crit">crítico</span> PROD-1 / PROD-3</span></div>
+          <dl>
+            <dt>Dado</dt><dd>um job que já reservou 100g de um filamento</dd>
+            <dt>Quando</dt><dd>o usuário edita o job para consumir 150g</dd>
+            <dt>Então</dt><dd>o sistema devolve as 100g antigas, valida se há saldo para 150g, aplica o novo consumo e registra as duas movimentações — tudo numa única transação; se qualquer passo falhar, nada é aplicado</dd>
+          </dl>
+        </div>
+
+        <div class="gwt">
+          <div class="gwt-head"><h5>Concorrência — dois usuários no mesmo filamento</h5><span class="id"><span class="badge crit">crítico</span> PROD-5</span></div>
+          <dl>
+            <dt>Dado</dt><dd>um filamento com 100g disponíveis</dd>
+            <dt>Quando</dt><dd>dois jobs tentam reservar 80g cada, ao mesmo tempo</dd>
+            <dt>Então</dt><dd>apenas um consegue; o segundo recebe erro de saldo insuficiente — nunca os dois passam e o saldo vai a -60g</dd>
+          </dl>
+        </div>
+
+        <div class="gwt">
+          <div class="gwt-head"><h5>Duplo clique / requisição repetida ao salvar</h5><span class="id"><span class="badge crit">crítico</span> CALC-4 / FIN-2</span></div>
+          <dl>
+            <dt>Dado</dt><dd>que a Atendente clica duas vezes seguidas em "Aprovar negociação"</dd>
+            <dt>Quando</dt><dd>as duas requisições chegam ao servidor</dd>
+            <dt>Então</dt><dd>apenas uma conta a receber e uma ordem de produção são criadas — a segunda chamada é idempotente e não duplica cobrança nem estoque</dd>
+          </dl>
+        </div>
+
+        <div class="gwt">
+          <div class="gwt-head"><h5>Alterar orçamento já aprovado</h5><span class="id"><span class="badge crit">crítico</span> CALC-4</span></div>
+          <dl>
+            <dt>Dado</dt><dd>um orçamento com status aprovado</dd>
+            <dt>Quando</dt><dd>o usuário tenta editar o valor diretamente</dd>
+            <dt>Então</dt><dd>o sistema não sobrescreve — cria uma nova versão do orçamento, mantendo a versão aprovada original intacta no histórico</dd>
+          </dl>
+        </div>
+
+        <div class="gwt">
+          <div class="gwt-head"><h5>Contador tenta editar módulo financeiro</h5><span class="id"><span class="badge crit">crítico</span> FIN-3</span></div>
+          <dl>
+            <dt>Dado</dt><dd>um usuário com perfil Contador autenticado</dd>
+            <dt>Quando</dt><dd>ele tenta (via UI ou chamada direta à API) editar uma conta a receber</dd>
+            <dt>Então</dt><dd>o backend nega com 403, independente do que o front-end mostrar ou esconder</dd>
+          </dl>
+        </div>
+
+        <div class="gwt">
+          <div class="gwt-head"><h5>Venda ou descarte sem estoque</h5><span class="id"><span class="badge crit">crítico</span> INV-2</span></div>
+          <dl>
+            <dt>Dado</dt><dd>zero peças disponíveis de um item de estoque</dd>
+            <dt>Quando</dt><dd>alguém tenta registrar venda ou descarte</dd>
+            <dt>Então</dt><dd>a operação é bloqueada com mensagem explicando que não há saldo disponível</dd>
+          </dl>
+        </div>
+
+        <div class="gwt">
+          <div class="gwt-head"><h5>Fechamento mensal com cards abertos</h5><span class="id"><span class="badge crit">crítico</span> CRM-5</span></div>
+          <dl>
+            <dt>Dado</dt><dd>cards ainda em Negociação/Desenvolvimento no fim do mês</dd>
+            <dt>Quando</dt><dd>o Admin inicia o fechamento do ciclo</dd>
+            <dt>Então</dt><dd>o sistema exige uma decisão explícita por card (transportar ou pendência carregada) antes de permitir concluir o fechamento — nenhum card desaparece silenciosamente</dd>
+          </dl>
+        </div>
+
+        <div class="gwt">
+          <div class="gwt-head"><h5>Qualidade reprovada gera retrabalho</h5><span class="id"><span class="badge crit">crítico</span> QUAL-2</span></div>
+          <dl>
+            <dt>Dado</dt><dd>um checklist de qualidade em andamento</dd>
+            <dt>Quando</dt><dd>o resultado é "reprovado" com motivo registrado</dd>
+            <dt>Então</dt><dd>o card retorna a Desenvolvimento, um novo ciclo de produção é aberto para retrabalho, e a reprovação original permanece visível no histórico do card</dd>
+          </dl>
+        </div>
+      </section>
+
+      <section id="transicoes">
+        <h3><span class="idx">06</span> Regras de transição — quem pode mover</h3>
+        <p class="lede">As pré-condições de cada transição já estão detalhadas na <a href="https://claude.ai/code/artifact/3d3188e3-b978-431c-97d2-4f0fee358c75" target="_blank" rel="noopener">Etapa 1, seção 09</a>. Aqui fecha a lacuna de permissão por ação: quem, de fato, pode disparar cada movimento.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Transição</th><th>Quem pode mover</th><th>Observação obrigatória?</th></tr></thead>
+            <tbody>
+              <tr><td>Proposta → Negociação</td><td>Comercial, Admin</td><td>Não</td></tr>
+              <tr><td>Negociação → Desenvolvimento</td><td>Comercial, Admin (bloqueado por pré-condições automáticas mesmo para eles)</td><td>Não</td></tr>
+              <tr><td>Desenvolvimento → Teste de Qualidade</td><td>Técnico, Admin</td><td>Não</td></tr>
+              <tr><td>Teste de Qualidade → Entrega</td><td>Técnico, Admin</td><td>Não</td></tr>
+              <tr><td>Teste de Qualidade → Desenvolvimento (reprovação)</td><td>Técnico, Admin</td><td>Sim — motivo da reprovação</td></tr>
+              <tr><td>Entrega → Concluído</td><td>Comercial ou Técnico, Admin</td><td>Não</td></tr>
+              <tr><td>Qualquer retrocesso manual fora do fluxo padrão</td><td>Somente Admin</td><td>Sim — justificativa</td></tr>
+              <tr><td>Contador</td><td>Nenhuma — acesso de leitura, não movimenta cards</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="doc-footer">
+        ERS 3D — Gestão de Soluções e Fabricações · Documento de planejamento, Etapa 2 · Continua em <a href="https://claude.ai/code/artifact/d8c7620f-468f-4153-b29b-bf8a2b01bcdd" target="_blank" rel="noopener">Etapa 3</a>, <a href="https://claude.ai/code/artifact/e6fc186e-7be5-4b1e-a8e7-6d729cce1560" target="_blank" rel="noopener">4</a> e <a href="https://claude.ai/code/artifact/2f3e339e-c606-407f-8857-69937f53aebe" target="_blank" rel="noopener">5</a>.
+      </footer>
+
+    </div>
+  </main>
+</div>

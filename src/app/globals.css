@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens — Etapa 4 (Wireframes & Design System) */
+:root {
+  --color-bg: #eef1f7;
+  --color-surface: #ffffff;
+  --color-surface-alt: #e4e9f3;
+  --color-border: #d7deea;
+  --color-border-strong: #b9c4d8;
+  --color-text: #1a2333;
+  --color-text-muted: #57647a;
+  --color-text-faint: #7c879b;
+  --color-accent: #2454e0;
+  --color-accent-strong: #17348c;
+  --color-accent-soft: #e5ecff;
+  --color-success: #12805c;
+  --color-success-soft: #e1f4ec;
+  --color-warning: #9a6300;
+  --color-warning-soft: #fbeed2;
+  --color-danger: #b4293a;
+  --color-danger-soft: #fbe4e6;
+  --color-dev: #6a3fd6;
+  --color-dev-soft: #ede6fb;
+  --color-neutral: #5c6779;
+  --color-neutral-soft: #e9ecf2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0f141d;
+    --color-surface: #171e2b;
+    --color-surface-alt: #1c2434;
+    --color-border: #2a3448;
+    --color-border-strong: #38455c;
+    --color-text: #e8ecf4;
+    --color-text-muted: #a3aec2;
+    --color-text-faint: #7c879b;
+    --color-accent: #6f9bff;
+    --color-accent-strong: #a9c2ff;
+    --color-accent-soft: #1c2c55;
+    --color-success: #4fcf9d;
+    --color-success-soft: #133329;
+    --color-warning: #e3ac3f;
+    --color-warning-soft: #3a2c0e;
+    --color-danger: #ef7a86;
+    --color-danger-soft: #3a1a1f;
+    --color-dev: #b49bff;
+    --color-dev-soft: #2a2350;
+    --color-neutral: #a3aec2;
+    --color-neutral-soft: #232c3d;
+  }
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
