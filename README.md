@@ -1,6 +1,6 @@
 # ERS 3D — Gestão de Soluções e Fabricações
 
-CRM operacional da ERS 3D Soluções e Fabricações. Este README cobre a **Fundação** (Sprint 0 + Sprint 1 do backlog): setup do projeto, banco, autenticação e permissões por ação. Os módulos de negócio (Clientes, Kanban, Calculadora, Produção, Qualidade, Estoque, Financeiro) entram nos sprints seguintes, conforme a Etapa 5 do planejamento.
+CRM operacional da ERS 3D Soluções e Fabricações. Este README cobre a **Fundação** (Sprint 0 + Sprint 1 do backlog) — setup do projeto, banco, autenticação e permissões por ação — e o módulo **Clientes** (Sprint 2). Os demais módulos de negócio (Kanban, Calculadora, Produção, Qualidade, Estoque, Financeiro) entram nos sprints seguintes, conforme a Etapa 5 do planejamento.
 
 Documentos de planejamento completos (visão, arquitetura, personas, segurança, design system, backlog): ver pasta `planejamento/`.
 
@@ -98,9 +98,17 @@ A checagem de acesso nunca é feita pelo nome do perfil (`role === "admin"`). To
 - Auditoria: login (sucesso/falha), criação/bloqueio/desbloqueio de usuário
 - Health check em `/api/health`
 
+## O que já funciona (Clientes — Sprint 2)
+
+- Cadastro de clientes PF/PJ (`/clientes`) com validação de CPF/CNPJ (dígito verificador)
+- Detecção de duplicidade por e-mail, telefone ou CPF/CNPJ (normalizados antes de comparar) — a tela alerta o usuário e exige confirmação explícita antes de salvar um cadastro coincidente, nunca bloqueia silenciosamente (CUST-2)
+- "Empresa" do cliente como tag leve (encontra ou cria por nome, sem cadastro/CRUD próprio — decisão registrada na Etapa 1)
+- Página 360° do cliente (`/clientes/[id]`) — esqueleto: dados cadastrais completos hoje, linha do tempo consolidada (interações, orçamentos, produção, financeiro) entra conforme os módulos correspondentes forem implementados
+- Toda escrita (`customers.manage`) passa por `requirePermission` e é registrada em `audit_logs`
+
 ## Riscos e limitações conhecidas (documentados, não escondidos)
 
 - **Rate limiting é em memória de processo** (`src/lib/rate-limit.ts`) — decisão deliberada para não depender de Redis nesta escala. Não sobrevive a restart/deploy e não é compartilhado entre instâncias. Documentado na Etapa 1 (arquitetura) como trade-off aceito; revisar se a aplicação escalar horizontalmente.
-- **Testes automatizados atuais usam Prisma mockado**, não um Postgres real — não havia banco disponível no ambiente em que a Fundação foi implementada. Cobre a lógica de negócio (regra do último ROOT, guarda de permissão, formato da auditoria) mas não valida constraints reais do banco (índices únicos, cascatas). Recomendado rodar `prisma migrate deploy` + um teste de integração manual contra um Neon de desenvolvimento antes do primeiro deploy real.
+- **Testes automatizados atuais usam Prisma mockado**, não um Postgres real — não havia banco disponível no ambiente em que a Fundação foi implementada, e essa mesma limitação se manteve no Sprint 2 (módulo Clientes). Cobre a lógica de negócio (regra do último ROOT, guarda de permissão, formato da auditoria, validação de CPF/CNPJ, detecção de duplicidade por e-mail/telefone/documento) mas não valida constraints reais do banco (índices, cascatas, comportamento de `String[]`/arrays no Postgres). A migration de clientes (`prisma/migrations/20260713010000_add_customers`) também foi escrita manualmente com `prisma migrate diff --from-empty --to-schema-datamodel --script`, sem `migrate dev` contra um banco real. Recomendado rodar `prisma migrate deploy` + um teste de integração manual contra um Neon de desenvolvimento antes do primeiro deploy real.
 - **Bloqueio de usuário por um form simples**: se a regra do último ROOT for violada via um clique (condição rara — só ocorre se o admin tentar bloquear o único ROOT), o erro aparece como página de erro genérica do Next.js, não como mensagem inline. A regra é respeitada corretamente (a operação é bloqueada), mas a UX desse caso específico pode melhorar depois.
 - **`package.json#prisma` está deprecated** a partir do Prisma 7 (aviso, não erro). Migrar para `prisma.config.ts` é um follow-up de baixo risco, não bloqueante.

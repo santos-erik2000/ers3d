@@ -12,6 +12,7 @@ export const PERMISSIONS = {
   AUDIT_READ: "audit.read",
   FINANCE_READ: "finance.read",
   SETTINGS_MANAGE: "settings.manage",
+  CUSTOMERS_MANAGE: "customers.manage",
 } as const;
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

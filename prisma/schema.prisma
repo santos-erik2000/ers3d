@@ -30,6 +30,8 @@ model User {
 
   userRoles UserRole[]
   auditLogs AuditLog[]
+  // Clientes onde este usuário é o responsável comercial (Sprint 2 — customers.ownerId).
+  customers Customer[]
 
   @@map("users")
 }
@@ -103,4 +105,78 @@ model AuditLog {
   @@index([userId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Clientes (Etapa 5, Sprint 2 — épico E2, histórias CUST-1..CUST-4).
+// ---------------------------------------------------------------------------
+
+enum CustomerType {
+  PF
+  PJ
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// "Empresa" do cliente é uma tag leve para agrupar/filtrar em relatórios e
+// dashboard (decisão registrada em planejamento/01-visao-arquitetura.html,
+// callout "Decidido · Campo 'empresa' do cliente"): não tem contatos,
+// endereços nem oportunidades próprios — só nome e segmento opcional.
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  segment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customers Customer[]
+
+  @@map("companies")
+}
+
+// Cadastro de clientes PF/PJ (CUST-1). Documento (CPF/CNPJ) e telefones são
+// normalizados (somente dígitos) por src/modules/customers/services/customers.ts
+// antes de gravar, para viabilizar a checagem de duplicidade (CUST-2). Não há
+// unique constraint de banco sobre email/documento/telefone de propósito: a
+// jornada "Detecção de duplicidade de cliente" (Etapa 2, seção 03) exige que o
+// alerta seja apresentado ao usuário, que decide confirmar o cadastro mesmo
+// assim — nunca um bloqueio silencioso no banco.
+model Customer {
+  id            String         @id @default(uuid())
+  name          String
+  type          CustomerType
+  document      String?
+  email         String?
+  phone         String?
+  whatsapp      String?
+  address       String?
+  city          String?
+  state         String?
+  zipCode       String?
+  origin        String?
+  segment       String?
+  notes         String?
+  tags          String[]       @default([])
+  status        CustomerStatus @default(ACTIVE)
+  lastContactAt DateTime?
+  nextContactAt DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([document])
+  @@index([phone])
+  @@index([whatsapp])
+  @@index([ownerId])
+  @@index([companyId])
+  @@map("customers")
 }

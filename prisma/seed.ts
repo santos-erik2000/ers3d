@@ -13,6 +13,7 @@ async function main() {
     { slug: PERMISSIONS.AUDIT_READ, description: "Consultar a trilha de auditoria" },
     { slug: PERMISSIONS.FINANCE_READ, description: "Ler módulos financeiros" },
     { slug: PERMISSIONS.SETTINGS_MANAGE, description: "Alterar configurações do sistema" },
+    { slug: PERMISSIONS.CUSTOMERS_MANAGE, description: "Cadastrar e editar clientes" },
   ];
 
   for (const p of permissionSeeds) {
@@ -55,7 +56,12 @@ async function main() {
     skipDuplicates: true,
   });
 
-  const adminSlugs = [PERMISSIONS.USERS_MANAGE, PERMISSIONS.FINANCE_READ, PERMISSIONS.SETTINGS_MANAGE];
+  const adminSlugs = [
+    PERMISSIONS.USERS_MANAGE,
+    PERMISSIONS.FINANCE_READ,
+    PERMISSIONS.SETTINGS_MANAGE,
+    PERMISSIONS.CUSTOMERS_MANAGE,
+  ];
   await prisma.rolePermission.deleteMany({ where: { roleId: admin.id } });
   await prisma.rolePermission.createMany({
     data: allPermissions
