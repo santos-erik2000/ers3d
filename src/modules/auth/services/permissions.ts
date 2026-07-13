@@ -23,6 +23,10 @@ export const PERMISSIONS = {
   // "crm.stage.move.tecnico", "crm.stage.revert") em vez de checar por nome de
   // perfil. Por enquanto, uma permissão nomeada só cobre "pode mexer no Kanban".
   CRM_MANAGE: "crm.manage",
+  // Cadastro de filamentos e movimentações de estoque (Sprint 4 — épico E4/E5).
+  FILAMENTS_MANAGE: "filaments.manage",
+  // Projetos e jobs de cálculo da calculadora de precificação (Sprint 4 — épico E4).
+  JOBS_MANAGE: "jobs.manage",
 } as const;
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
