@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/modules/audit/services/audit";
 import { NEXT_STAGE, STAGE_LABEL } from "@/modules/crm/format";
+import { getOrCreateOpenCycle } from "@/modules/crm/services/cycles";
 import { Prisma, type Opportunity, type OpportunityPriority, type OpportunityStage } from "@prisma/client";
 
 export class BusinessRuleError extends Error {}
@@ -22,6 +23,13 @@ export class BusinessRuleError extends Error {}
 type TransitionSubject = {
   value: Prisma.Decimal;
   deadlineAt: Date | null;
+  // Sprint 5 (módulo quotes): calculado pelo chamador (moveStage) a partir de
+  // `hasApprovedQuoteVersion` — existe alguma QuoteVersion com status
+  // APPROVED vinculada à oportunidade? Opcional/undefined nas transições que
+  // não dependem disso (só o case NEGOCIACAO usa este campo), para não
+  // obrigar toda chamada de validateTransition (inclusive nos testes puros
+  // que não passam por moveStage) a sempre informar.
+  hasApprovedQuote?: boolean;
 };
 
 /**
@@ -79,9 +87,15 @@ export function validateTransition(
 
     case "NEGOCIACAO":
       // Pré-condição (seção 09): "Orçamento aprovado, valor negociado,
-      // condição de pagamento e prazo definidos". Hoje só dá para checar o
-      // que já existe no domínio: valor negociado e prazo preenchidos no
-      // próprio card (campos manuais até a calculadora existir).
+      // condição de pagamento e prazo definidos". Valor/prazo continuam
+      // sendo os campos manuais do card (Sprint 3) — "orçamento aprovado"
+      // agora é checado de verdade (Sprint 5 — módulo quotes):
+      // `subject.hasApprovedQuote` é calculado por `moveStage` a partir de
+      // `hasApprovedQuoteVersion` (existe uma QuoteVersion com
+      // status = APPROVED vinculada à oportunidade?). "Condição de
+      // pagamento" fica registrada na própria QuoteVersion aprovada
+      // (`paymentTerms`), não é checada como campo isolado aqui — checar sua
+      // presença é um refinamento possível, não um bloqueio inventado.
       if (!subject.value || subject.value.lessThanOrEqualTo(0)) {
         throw new BusinessRuleError(
           "Defina o valor negociado (maior que zero) antes de mover para Desenvolvimento.",
@@ -90,12 +104,11 @@ export function validateTransition(
       if (!subject.deadlineAt) {
         throw new BusinessRuleError("Defina o prazo antes de mover para Desenvolvimento.");
       }
-      // TODO (Sprint 5 — módulo quotes): a pré-condição real da seção 09 é
-      // "orçamento aprovado" (quote.status === "APPROVED") + "condição de
-      // pagamento definida", não apenas valor/prazo preenchidos manualmente.
-      // Conectar aqui assim que `quotes` existir — não fingir essa checagem
-      // agora, e não bloquear a transição por algo que ainda não pode ser
-      // verdadeiro neste sprint.
+      if (!subject.hasApprovedQuote) {
+        throw new BusinessRuleError(
+          "É necessário ter uma versão de orçamento aprovada (quotes) antes de mover para Desenvolvimento.",
+        );
+      }
       break;
 
     case "DESENVOLVIMENTO":
@@ -163,6 +176,11 @@ export async function createOpportunity(
   const tags = (input.tags ?? []).map((t) => t.trim()).filter(Boolean);
 
   const created = await prisma.$transaction(async (tx) => {
+    // Sprint 5 (CRM-5): toda oportunidade nasce vinculada ao ciclo mensal
+    // aberto atual — cria automaticamente o primeiro ciclo (mês corrente) se
+    // nenhum existir ainda, para não exigir um passo manual de setup.
+    const cycle = await getOrCreateOpenCycle(tx);
+
     const opportunity = await tx.opportunity.create({
       data: {
         title,
@@ -172,6 +190,7 @@ export async function createOpportunity(
         deadlineAt: input.deadlineAt ?? null,
         priority: input.priority ?? "MEDIUM",
         tags,
+        cycleId: cycle.id,
       },
     });
 
@@ -218,7 +237,19 @@ export async function moveStage(
   const opportunity = await prisma.opportunity.findUnique({ where: { id: opportunityId } });
   if (!opportunity) throw new BusinessRuleError("Oportunidade não encontrada.");
 
-  validateTransition(opportunity.stage, toStage, opportunity, note);
+  // Sprint 5: a checagem de "orçamento aprovado" (case NEGOCIACAO de
+  // validateTransition) só é relevante quando a oportunidade está saindo de
+  // Negociação — evita uma consulta desnecessária nas demais transições.
+  let hasApprovedQuote: boolean | undefined;
+  if (opportunity.stage === "NEGOCIACAO") {
+    const approvedVersion = await prisma.quoteVersion.findFirst({
+      where: { status: "APPROVED", quote: { opportunityId } },
+      select: { id: true },
+    });
+    hasApprovedQuote = Boolean(approvedVersion);
+  }
+
+  validateTransition(opportunity.stage, toStage, { ...opportunity, hasApprovedQuote }, note);
 
   const trimmedNote = note?.trim() || null;
 
@@ -255,6 +286,23 @@ export async function moveStage(
   });
 
   return updated;
+}
+
+/**
+ * Oportunidade com os dados de apoio da página de detalhe (Sprint 5 —
+ * /crm/[id]): cliente, responsável, ciclo atual e, se houver, o ciclo de
+ * onde foi "carregada" como pendência (ver src/modules/crm/services/cycles.ts).
+ */
+export async function getOpportunityById(id: string) {
+  return prisma.opportunity.findUnique({
+    where: { id },
+    include: {
+      customer: { select: { id: true, name: true } },
+      owner: { select: { id: true, name: true } },
+      cycle: { select: { id: true, referenceMonth: true, status: true } },
+      carriedFromCycle: { select: { id: true, referenceMonth: true } },
+    },
+  });
 }
 
 export async function listOpportunities(filters: OpportunityFilters = {}) {

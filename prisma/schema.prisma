@@ -40,6 +40,8 @@ model User {
   filamentMovements     FilamentMovement[]        @relation("FilamentMovementActor")
   // Projetos onde este usuário é o responsável técnico (Sprint 4 — projects.responsibleId).
   responsibleProjects   Project[]                 @relation("ProjectResponsible")
+  // Ciclos mensais fechados por este usuário (Sprint 5 — crm_cycles.closed_by).
+  closedCycles          CrmCycle[]                @relation("CrmCycleClosedBy")
 
   @@map("users")
 }
@@ -194,20 +196,52 @@ model Customer {
 }
 
 // ---------------------------------------------------------------------------
-// Kanban CRM (Etapa 5, Sprint 3 — épico E3, histórias CRM-1..CRM-5).
+// Kanban CRM (Etapa 5, Sprint 3 — épico E3, histórias CRM-1..CRM-5) + Ciclo
+// mensal e Orçamento (Sprint 5 — épico E4 CALC-4/CALC-5, épico E3 CRM-5).
 // Fluxo e pré-condições de transição: planejamento/01-visao-arquitetura.html
 // seções 08/09. Quem pode mover cada transição por perfil:
 // planejamento/02-personas-jornadas-historias.html seção 06.
 //
-// Sequenciamento deliberado (planejamento/05-backlog-sprints-dod.html seção 01):
-// `quotes` (orçamento) e `crm_cycles` (ciclo mensal) só existem a partir do
-// Sprint 5 — por isso NÃO há tabela `crm_cycles` nem `quote_id` aqui ainda, e
-// as pré-condições de transição que dependem desses módulos futuros (orçamento
-// aprovado, produção concluída, qualidade aprovada, entrega registrada) são
-// validadas apenas pelo que já existe hoje no domínio, com o restante marcado
-// como TODO em src/modules/crm/services/opportunities.ts — nunca uma checagem
+// A partir do Sprint 5, `quotes`/`quote_versions` (orçamento formal,
+// versionado — nunca sobrescrito, ver `QuoteVersion` abaixo) e `crm_cycles`
+// (ciclo mensal, `Opportunity.cycleId`/`carriedFromCycleId`) existem de
+// verdade — a pré-condição "orçamento aprovado" de Negociação → Desenvolvimento
+// passou a ser checada de verdade em `validateTransition`
+// (src/modules/crm/services/opportunities.ts). As demais pré-condições que
+// ainda dependem de módulos futuros (produção concluída, qualidade aprovada,
+// entrega registrada) continuam marcadas como TODO — nunca uma checagem
 // falsa, nunca um bloqueio inventado.
 // ---------------------------------------------------------------------------
+
+// Ciclo mensal do Kanban (CRM-5). Fechamento nunca é destrutivo: cards ainda
+// abertos (stage != CONCLUIDO) no ciclo sendo fechado exigem uma decisão
+// explícita por card (ver `Opportunity.carriedFromCycleId` e
+// src/modules/crm/services/cycles.ts, função `closeCycle`) — nenhum card é
+// apagado nem movido silenciosamente. `referenceMonth` é normalizado para o
+// primeiro dia do mês (UTC) para servir de chave natural de "qual ciclo é
+// esse", sem impor fuso de exibição (isso é responsabilidade de `settings`).
+enum CrmCycleStatus {
+  OPEN
+  CLOSED
+}
+
+model CrmCycle {
+  id             String         @id @default(uuid())
+  referenceMonth DateTime       @db.Date
+  status         CrmCycleStatus @default(OPEN)
+  closedAt       DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  closedById String?
+  closedBy   User?   @relation("CrmCycleClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+
+  opportunities        Opportunity[] @relation("OpportunityCycle")
+  carriedOpportunities Opportunity[] @relation("OpportunityCarriedFromCycle")
+
+  @@unique([referenceMonth])
+  @@map("crm_cycles")
+}
 
 enum OpportunityStage {
   PROPOSTA
@@ -259,12 +293,32 @@ model Opportunity {
   ownerId String?
   owner   User?   @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
+  // Ciclo mensal ao qual a oportunidade está vinculada hoje (Sprint 5 —
+  // CRM-5). Nulável porque oportunidades criadas antes desta migration não
+  // têm ciclo retroativo (a migration é aditiva, não faz backfill) — toda
+  // oportunidade criada a partir de agora recebe o ciclo aberto atual
+  // automaticamente (src/modules/crm/services/opportunities.ts,
+  // createOpportunity, via src/modules/crm/services/cycles.ts).
+  cycleId String?
+  cycle   CrmCycle? @relation("OpportunityCycle", fields: [cycleId], references: [id], onDelete: SetNull)
+
+  // Preenchido só quando o fechamento de um ciclo decide "manter como
+  // pendência carregada" para este card (em vez de "transportar" sem
+  // marcação) — aponta para o ciclo (agora fechado) de onde ele veio. Resolve
+  // o card "carregado" entre ciclos sem duplicar a linha (planejamento/01
+  // §05, risco "Modelagem de ciclo mensal"; §11, diagrama relacional).
+  carriedFromCycleId String?
+  carriedFromCycle   CrmCycle? @relation("OpportunityCarriedFromCycle", fields: [carriedFromCycleId], references: [id], onDelete: SetNull)
+
   stageHistory OpportunityStageHistory[]
+  quotes       Quote[]
 
   @@index([customerId])
   @@index([ownerId])
   @@index([stage])
   @@index([deadlineAt])
+  @@index([cycleId])
+  @@index([carriedFromCycleId])
   @@map("opportunities")
 }
 
@@ -466,7 +520,11 @@ model Job {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
 
-  jobFilaments JobFilament[]
+  jobFilaments  JobFilament[]
+  // Versões de orçamento geradas a partir deste job (Sprint 5 — CALC-4). Um
+  // mesmo Job pode originar mais de uma QuoteVersion (ex.: reenviado com
+  // desconto diferente em uma nova versão) — o Job em si continua imutável.
+  quoteVersions QuoteVersion[]
 
   @@index([projectId])
   @@map("jobs")
@@ -498,4 +556,103 @@ model JobFilament {
   @@index([jobId])
   @@index([filamentId])
   @@map("job_filaments")
+}
+
+// ---------------------------------------------------------------------------
+// Orçamento (Etapa 5, Sprint 5 — épico E4, histórias CALC-4/CALC-5). Conecta
+// o que a calculadora já produz (`Job`) a uma `Opportunity` do Kanban CRM.
+//
+// Versionamento (planejamento/01-visao-arquitetura.html §11, "Versionamento":
+// "orçamento vira nova linha em quote_versions a cada revisão" — e o critério
+// de aceite crítico explícito de planejamento/02-personas-jornadas-historias
+// .html §05, "Alterar orçamento já aprovado"): NENHUMA função deste módulo
+// atualiza os campos monetários de uma `QuoteVersion` já criada — "editar" um
+// orçamento é sempre criar uma nova `QuoteVersion` (número de versão
+// incrementado), nunca um UPDATE sobre a existente. A versão aprovada
+// original permanece intacta e consultável no histórico
+// (src/modules/quotes/services/quotes.ts).
+//
+// `Quote` é o cabeçalho que agrupa as versões de uma negociação; `status`
+// nele é só um espelho conveniente do status da versão mais recente (para
+// filtrar/listar sem juntar com `quote_versions`) — a fonte de verdade de
+// "está aprovado?" é sempre a existência de uma `QuoteVersion` com
+// `status = APPROVED` (é isso que src/modules/crm/services/opportunities.ts,
+// `validateTransition`, passa a checar de verdade na transição
+// Negociação → Desenvolvimento).
+// ---------------------------------------------------------------------------
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+}
+
+model Quote {
+  id     String      @id @default(uuid())
+  status QuoteStatus @default(DRAFT)
+
+  // Validade da proposta vigente (data limite para o cliente decidir).
+  validUntil DateTime?
+  // Motivo de perda — preenchido quando `status` vira REJECTED (rejeição da
+  // versão vigente pelo cliente). Nunca apagado ao criar uma nova versão
+  // depois: uma nova versão simplesmente move `status` para DRAFT de novo.
+  lostReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+
+  versions QuoteVersion[]
+
+  @@index([opportunityId])
+  @@map("quotes")
+}
+
+// Uma linha imutável por revisão do orçamento — nunca sobrescrita (ver
+// cabeçalho da seção). `versionNumber` é sequencial por `quoteId`, começando
+// em 1. Vem da calculadora (`jobId` preenchido, `isManual = false`, valores
+// copiados do `Job` já calculado — CALC-2/CALC-3) OU é manual
+// (`jobId = null`, `isManual = true`, exige `manualJustification` — regra do
+// briefing original "orçamento manual com justificativa").
+model QuoteVersion {
+  id            String      @id @default(uuid())
+  versionNumber Int
+  status        QuoteStatus @default(DRAFT)
+
+  isManual            Boolean @default(false)
+  manualJustification String?
+
+  // valor original (antes do desconto), desconto e valor final — todos
+  // Decimal, nunca float, em qualquer camada (regra do CLAUDE.md).
+  originalValue Decimal @db.Decimal(12, 2)
+  discount      Decimal @default(0) @db.Decimal(12, 2)
+  finalValue    Decimal @db.Decimal(12, 2)
+
+  paymentTerms     String?
+  deliveryDeadline DateTime?
+  quantity         Int       @default(1)
+  notes            String?
+
+  sentAt     DateTime?
+  acceptedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  // Preenchido só quando esta versão veio da calculadora (reaproveita o
+  // preço já calculado do Job — CALC-4). Null quando é um orçamento manual.
+  jobId String?
+  job   Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@unique([quoteId, versionNumber])
+  @@index([quoteId])
+  @@index([jobId])
+  @@index([status])
+  @@map("quote_versions")
 }

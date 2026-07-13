@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -38,6 +39,12 @@ export type BoardOpportunity = {
   customer: { id: string; name: string };
   owner: { id: string; name: string } | null;
   lastMovedAt: string;
+  // Sprint 5 (CRM-5): preenchido quando o fechamento de um ciclo marcou este
+  // card como "pendência carregada" do ciclo anterior — a UI precisa deixar
+  // isso visualmente claro, nunca só mover o card em silêncio (planejamento/
+  // 02-personas-jornadas-historias.html §04, risco "Ciclos mensais mal
+  // compreendidos").
+  carriedFromCycleId: string | null;
 };
 
 type Person = { id: string; name: string };
@@ -92,6 +99,11 @@ function OpportunityCardView({
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE_CLASS[deadline.tone]}`}>
           {deadline.label}
         </span>
+        {opportunity.carriedFromCycleId && (
+          <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning">
+            Pendência carregada
+          </span>
+        )}
       </div>
 
       <div className="flex items-center justify-between text-xs text-text-faint">
@@ -152,6 +164,12 @@ function DraggableCard({
           Mover para {STAGE_LABEL[nextStage]} →
         </button>
       )}
+      <Link
+        href={`/crm/${opportunity.id}`}
+        className="mt-1 block w-full rounded-sm border border-dashed border-border px-2 py-1 text-center text-xs text-text-muted transition hover:border-accent hover:text-accent"
+      >
+        Abrir orçamento →
+      </Link>
     </div>
   );
 }

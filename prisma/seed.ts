@@ -23,6 +23,10 @@ async function main() {
       slug: PERMISSIONS.JOBS_MANAGE,
       description: "Criar projetos e jobs de cálculo na calculadora de precificação",
     },
+    {
+      slug: PERMISSIONS.QUOTES_MANAGE,
+      description: "Criar/versionar orçamento, aprovar/rejeitar versão e fechar ciclo mensal do Kanban",
+    },
   ];
 
   for (const p of permissionSeeds) {
@@ -73,6 +77,7 @@ async function main() {
     PERMISSIONS.CRM_MANAGE,
     PERMISSIONS.FILAMENTS_MANAGE,
     PERMISSIONS.JOBS_MANAGE,
+    PERMISSIONS.QUOTES_MANAGE,
   ];
   await prisma.rolePermission.deleteMany({ where: { roleId: admin.id } });
   await prisma.rolePermission.createMany({

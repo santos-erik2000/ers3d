@@ -27,6 +27,10 @@ export const PERMISSIONS = {
   FILAMENTS_MANAGE: "filaments.manage",
   // Projetos e jobs de cálculo da calculadora de precificação (Sprint 4 — épico E4).
   JOBS_MANAGE: "jobs.manage",
+  // Criar/versionar orçamento (a partir de job ou manual justificado) e
+  // aprovar/rejeitar versão, e fechar ciclo mensal do Kanban (Sprint 5 —
+  // épico E4 CALC-4/CALC-5, épico E3 CRM-5).
+  QUOTES_MANAGE: "quotes.manage",
 } as const;
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

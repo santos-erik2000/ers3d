@@ -3,8 +3,14 @@ import { PERMISSIONS } from "@/modules/auth/services/permissions";
 import { listCustomers } from "@/modules/customers/services/customers";
 import { listUsersWithRoles } from "@/modules/auth/services/users";
 import { listOpportunities } from "@/modules/crm/services/opportunities";
+import { getOpenCardsForCycle, getOpenCycle } from "@/modules/crm/services/cycles";
+import { CloseCycleForm, type OpenCard } from "./close-cycle-form";
 import { CrmBoard, type BoardOpportunity } from "./crm-board";
 import { NewOpportunityForm } from "./new-opportunity-form";
+
+function formatMonth(date: Date): string {
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(date);
+}
 
 export default async function CrmPage() {
   // Sprint 3: página inteira exige `crm.manage`, mesmo para visualizar —
@@ -13,11 +19,20 @@ export default async function CrmPage() {
   // Comercial/Técnico no seed ainda). Revisar quando esses perfis existirem.
   await requirePermission(PERMISSIONS.CRM_MANAGE);
 
-  const [opportunities, users, customers] = await Promise.all([
+  const [opportunities, users, customers, openCycle] = await Promise.all([
     listOpportunities(),
     listUsersWithRoles(),
     listCustomers(),
+    getOpenCycle(),
   ]);
+
+  const openCards: OpenCard[] = openCycle
+    ? (await getOpenCardsForCycle(openCycle.id)).map((o) => ({
+        id: o.id,
+        title: o.title,
+        customerName: o.customer.name,
+      }))
+    : [];
 
   const boardOpportunities: BoardOpportunity[] = opportunities.map((o) => {
     const lastMove = o.stageHistory[0]?.movedAt ?? o.createdAt;
@@ -32,6 +47,7 @@ export default async function CrmPage() {
       customer: { id: o.customer.id, name: o.customer.name },
       owner: o.owner ? { id: o.owner.id, name: o.owner.name } : null,
       lastMovedAt: lastMove.toISOString(),
+      carriedFromCycleId: o.carriedFromCycleId,
     };
   });
 
@@ -40,11 +56,23 @@ export default async function CrmPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-text">CRM — Kanban</h1>
-      <p className="mt-1 text-sm text-text-muted">
-        Quadro comercial com as 6 etapas do fluxo (<code>crm.manage</code>). Arraste um card entre colunas ou
-        use o botão de avanço rápido no card.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-text">CRM — Kanban</h1>
+          <p className="mt-1 text-sm text-text-muted">
+            Quadro comercial com as 6 etapas do fluxo (<code>crm.manage</code>). Arraste um card entre colunas
+            ou use o botão de avanço rápido no card. Abra um card para ver/gerar o orçamento.
+          </p>
+        </div>
+
+        {openCycle && (
+          <CloseCycleForm
+            cycleId={openCycle.id}
+            referenceMonthLabel={formatMonth(openCycle.referenceMonth)}
+            cards={openCards}
+          />
+        )}
+      </div>
 
       <div className="mt-6">
         <CrmBoard initialOpportunities={boardOpportunities} owners={owners} customers={customerOptions} />

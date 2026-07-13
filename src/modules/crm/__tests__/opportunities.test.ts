@@ -10,7 +10,14 @@ vi.mock("@/lib/prisma", () => {
   const opportunityStageHistory = {
     create: vi.fn(),
   };
-  const prismaMock: Record<string, unknown> = { opportunity, opportunityStageHistory };
+  const crmCycle = {
+    findFirst: vi.fn(),
+    create: vi.fn(),
+  };
+  const quoteVersion = {
+    findFirst: vi.fn(),
+  };
+  const prismaMock: Record<string, unknown> = { opportunity, opportunityStageHistory, crmCycle, quoteVersion };
   prismaMock.$transaction = vi.fn(async (cb: (tx: unknown) => unknown) => cb(prismaMock));
   return { prisma: prismaMock };
 });
@@ -29,6 +36,8 @@ import {
 
 const mockedOpportunity = vi.mocked(prisma.opportunity);
 const mockedHistory = vi.mocked(prisma.opportunityStageHistory);
+const mockedCrmCycle = vi.mocked(prisma.crmCycle);
+const mockedQuoteVersion = vi.mocked(prisma.quoteVersion);
 
 function resetMocks() {
   mockedOpportunity.findMany.mockReset();
@@ -36,6 +45,9 @@ function resetMocks() {
   mockedOpportunity.create.mockReset();
   mockedOpportunity.update.mockReset();
   mockedHistory.create.mockReset();
+  mockedCrmCycle.findFirst.mockReset();
+  mockedCrmCycle.create.mockReset();
+  mockedQuoteVersion.findFirst.mockReset();
   vi.mocked(recordAudit).mockReset();
 }
 
@@ -86,11 +98,22 @@ describe("validateTransition — CRM-2 (caso crítico: movimentação inválida)
     ).toThrow(/prazo/i);
   });
 
-  it("permite Negociação → Desenvolvimento com valor e prazo (orçamento aprovado fica de TODO para o Sprint 5)", () => {
+  it("bloqueia Negociação → Desenvolvimento sem orçamento aprovado (Sprint 5 conecta a pré-condição real)", () => {
     expect(() =>
       validateTransition("NEGOCIACAO", "DESENVOLVIMENTO", {
         value: new Prisma.Decimal(500),
         deadlineAt: new Date(),
+        hasApprovedQuote: false,
+      }),
+    ).toThrow(/orçamento aprovada/i);
+  });
+
+  it("permite Negociação → Desenvolvimento com valor, prazo e orçamento aprovado", () => {
+    expect(() =>
+      validateTransition("NEGOCIACAO", "DESENVOLVIMENTO", {
+        value: new Prisma.Decimal(500),
+        deadlineAt: new Date(),
+        hasApprovedQuote: true,
       }),
     ).not.toThrow();
   });
@@ -204,12 +227,75 @@ describe("moveStage", () => {
   });
 });
 
+// --- moveStage: Negociação → Desenvolvimento exige orçamento aprovado (Sprint 5) --
+
+describe("moveStage — Negociação → Desenvolvimento exige QuoteVersion aprovada (Sprint 5)", () => {
+  beforeEach(resetMocks);
+
+  it("bloqueia quando não há nenhuma QuoteVersion aprovada vinculada à oportunidade", async () => {
+    mockedOpportunity.findUnique.mockResolvedValue({
+      id: "op3",
+      stage: "NEGOCIACAO",
+      value: new Prisma.Decimal(500),
+      deadlineAt: new Date(),
+    } as never);
+    mockedQuoteVersion.findFirst.mockResolvedValue(null);
+
+    await expect(moveStage("op3", "DESENVOLVIMENTO", "actor1")).rejects.toThrow(/orçamento aprovada/i);
+
+    expect(mockedQuoteVersion.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: "APPROVED", quote: { opportunityId: "op3" } } }),
+    );
+    expect(mockedOpportunity.update).not.toHaveBeenCalled();
+    expect(mockedHistory.create).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("permite quando existe uma QuoteVersion aprovada vinculada à oportunidade", async () => {
+    mockedOpportunity.findUnique.mockResolvedValue({
+      id: "op3",
+      stage: "NEGOCIACAO",
+      value: new Prisma.Decimal(500),
+      deadlineAt: new Date(),
+    } as never);
+    mockedQuoteVersion.findFirst.mockResolvedValue({ id: "qv1" } as never);
+    mockedOpportunity.update.mockResolvedValue({ id: "op3", stage: "DESENVOLVIMENTO" } as never);
+
+    const result = await moveStage("op3", "DESENVOLVIMENTO", "actor1");
+
+    expect(result).toMatchObject({ id: "op3", stage: "DESENVOLVIMENTO" });
+    expect(mockedOpportunity.update).toHaveBeenCalledWith({
+      where: { id: "op3" },
+      data: { stage: "DESENVOLVIMENTO" },
+    });
+  });
+
+  it("não consulta QuoteVersion quando a oportunidade não está saindo de Negociação", async () => {
+    mockedOpportunity.findUnique.mockResolvedValue({
+      id: "op1",
+      stage: "PROPOSTA",
+      value: new Prisma.Decimal(0),
+      deadlineAt: null,
+    } as never);
+    mockedOpportunity.update.mockResolvedValue({ id: "op1", stage: "NEGOCIACAO" } as never);
+
+    await moveStage("op1", "NEGOCIACAO", "actor1");
+
+    expect(mockedQuoteVersion.findFirst).not.toHaveBeenCalled();
+  });
+});
+
 // --- createOpportunity -------------------------------------------------------
 
 describe("createOpportunity", () => {
   beforeEach(resetMocks);
 
-  it("cria a oportunidade, o histórico inicial (Proposta) e a auditoria", async () => {
+  it("cria a oportunidade vinculada ao ciclo aberto atual, o histórico inicial (Proposta) e a auditoria", async () => {
+    mockedCrmCycle.findFirst.mockResolvedValue({
+      id: "cycle1",
+      status: "OPEN",
+      referenceMonth: new Date(Date.UTC(2026, 6, 1)),
+    } as never);
     mockedOpportunity.create.mockResolvedValue({
       id: "new1",
       title: "Suporte de câmera",
@@ -225,6 +311,10 @@ describe("createOpportunity", () => {
 
     expect(result).toMatchObject({ id: "new1" });
     expect(mockedOpportunity.create).toHaveBeenCalledTimes(1);
+    expect(mockedOpportunity.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cycleId: "cycle1" }) }),
+    );
+    expect(mockedCrmCycle.create).not.toHaveBeenCalled();
     expect(mockedHistory.create).toHaveBeenCalledWith({
       data: {
         opportunityId: "new1",
@@ -236,6 +326,23 @@ describe("createOpportunity", () => {
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ entityType: "opportunity", action: "opportunity.create", userId: "actor1" }),
       expect.anything(),
+    );
+  });
+
+  it("cria automaticamente o primeiro ciclo mensal quando nenhum ciclo aberto existe ainda", async () => {
+    mockedCrmCycle.findFirst.mockResolvedValue(null);
+    mockedCrmCycle.create.mockResolvedValue({
+      id: "cycle-new",
+      status: "OPEN",
+      referenceMonth: new Date(Date.UTC(2026, 6, 1)),
+    } as never);
+    mockedOpportunity.create.mockResolvedValue({ id: "new2", stage: "PROPOSTA" } as never);
+
+    await createOpportunity({ title: "Peça X", customerId: "cust1" }, "actor1");
+
+    expect(mockedCrmCycle.create).toHaveBeenCalledTimes(1);
+    expect(mockedOpportunity.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cycleId: "cycle-new" }) }),
     );
   });
 
