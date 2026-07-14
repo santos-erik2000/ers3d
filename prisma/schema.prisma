@@ -54,6 +54,9 @@ model User {
   // Entregas registradas/criadas por este usuário (Sprint 8 —
   // deliveries.created_by_id).
   deliveriesCreated           Delivery[]                @relation("DeliveryCreatedBy")
+  // Transações financeiras (recebimento/estorno) registradas por este usuário
+  // (Sprint 9 — financial_transactions.registered_by_id).
+  financialTransactions       FinancialTransaction[]    @relation("FinancialTransactionRegisteredBy")
 
   @@map("users")
 }
@@ -322,26 +325,34 @@ model Opportunity {
   carriedFromCycleId String?
   carriedFromCycle   CrmCycle? @relation("OpportunityCarriedFromCycle", fields: [carriedFromCycleId], references: [id], onDelete: SetNull)
 
-  stageHistory     OpportunityStageHistory[]
-  quotes           Quote[]
+  stageHistory        OpportunityStageHistory[]
+  quotes              Quote[]
   // Ordens de produção geradas para esta oportunidade (Sprint 6) — normalmente
   // uma só (criada automaticamente na aprovação de uma versão vinda de Job, ou
   // manualmente para uma versão manual sem job), mas o schema não impõe
   // unicidade para não travar um retrabalho futuro (Sprint 7) que precise de
   // mais de uma ordem ao longo do tempo.
-  productionOrders ProductionOrder[]
+  productionOrders    ProductionOrder[]
   // Checklists de qualidade (Sprint 7) rodados para esta oportunidade —
   // normalmente um por ciclo de produção (original + um por retrabalho), o
   // histórico completo (inclusive reprovações antigas) fica sempre
   // consultável (QUAL-3), nunca apagado.
-  qualityChecks    QualityCheck[]
+  qualityChecks       QualityCheck[]
   // Itens de estoque de peças gerados a partir de aprovações de qualidade
   // desta oportunidade (Sprint 8 — INV-1) — normalmente um por checklist
   // aprovado/aprovado com ressalva.
-  inventoryItems   InventoryItem[]
+  inventoryItems      InventoryItem[]
   // Entregas registradas para esta oportunidade (Sprint 8 — DEL-1), a mais
   // recente com status ENTREGUE é a pré-condição real de Entrega → Concluído.
-  deliveries       Delivery[]
+  deliveries          Delivery[]
+  // Contas a receber nascidas de versões de orçamento aprovadas desta
+  // oportunidade (Sprint 9 — FIN-1). Normalmente uma só, mas o schema não
+  // impõe unicidade (mesmo padrão de ProductionOrder/QualityCheck/Delivery):
+  // se uma segunda QuoteVersion for aprovada mais tarde para a mesma
+  // oportunidade (renegociação), nasce uma segunda AccountsReceivable — a
+  // pré-condição financeira do Kanban (validateTransition, case "ENTREGA")
+  // sempre olha a MAIS RECENTE, nunca "existe alguma paga alguma vez".
+  accountsReceivables AccountsReceivable[]
 
   @@index([customerId])
   @@index([ownerId])
@@ -708,6 +719,12 @@ model QuoteVersion {
   jobId String?
   job   Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
+  // Conta a receber nascida quando esta versão é aprovada (Sprint 9 — FIN-1,
+  // src/modules/quotes/services/quotes.ts, `approveVersion`). Nula até a
+  // aprovação acontecer; 1:1 porque cada aprovação gera exatamente uma
+  // AccountsReceivable (ver `AccountsReceivable.quoteVersionId @unique`).
+  accountsReceivable AccountsReceivable?
+
   @@unique([quoteId, versionNumber])
   @@index([quoteId])
   @@index([jobId])
@@ -887,7 +904,7 @@ model QualityCheck {
   checkedById String?
   checkedBy   User?   @relation("QualityCheckChecker", fields: [checkedById], references: [id], onDelete: SetNull)
 
-  items QualityCheckItem[]
+  items          QualityCheckItem[]
   // Itens de estoque de peças gerados a partir desta aprovação (Sprint 8 —
   // INV-1) — vazio quando result = REPROVADO (reprovação nunca gera peça).
   inventoryItems InventoryItem[]
@@ -988,7 +1005,7 @@ model InventoryItem {
   quantitySold      Int @default(0)
   quantityDiscarded Int @default(0)
 
-  unitCost Decimal? @db.Decimal(12, 2)
+  unitCost Decimal?            @db.Decimal(12, 2)
   location String?
   status   InventoryItemStatus @default(ACTIVE)
   version  Int                 @default(0)
@@ -1031,14 +1048,14 @@ model InventoryMovement {
 
   quantity Int
 
-  availableBefore  Int
-  availableAfter   Int
-  reservedBefore   Int
-  reservedAfter    Int
-  soldBefore       Int
-  soldAfter        Int
-  discardedBefore  Int
-  discardedAfter   Int
+  availableBefore Int
+  availableAfter  Int
+  reservedBefore  Int
+  reservedAfter   Int
+  soldBefore      Int
+  soldAfter       Int
+  discardedBefore Int
+  discardedAfter  Int
 
   reason    String?
   createdAt DateTime @default(now())
@@ -1140,4 +1157,201 @@ model DeliveryChecklistItem {
 
   @@index([deliveryId])
   @@map("delivery_checklist_items")
+}
+
+// ---------------------------------------------------------------------------
+// Financeiro (Etapa 5, Sprint 9 — épico E8, histórias FIN-1..FIN-4). Ver
+// planejamento/01-visao-arquitetura.html, callout "Decidido · Meios de
+// pagamento" (só Pix e maquininha, sem gateway — baixa sempre manual) e a
+// linha `accounts_receivable`/`payment_installments`/`financial_transactions`
+// do modelo de dados inicial (§11).
+//
+// REGRA MAIS IMPORTANTE DO MÓDULO: o valor negociado aprovado NUNCA é tratado
+// como dinheiro em caixa. Aprovar uma QuoteVersion gera uma AccountsReceivable
+// com status PREVISTO — nunca PENDENTE, nunca PAGO (FIN-1). O caixa só se
+// move quando uma FinancialTransaction é de fato registrada (baixa manual,
+// `recordPayment`/`reverseTransaction`,
+// src/modules/finance/services/receivables.ts) — é a ÚNICA fonte que
+// representa dinheiro entrando/saindo de verdade; `AccountsReceivable` e
+// `PaymentInstallment` são só o registro do que é esperado/negociado.
+//
+// Nascimento (FIN-1): src/modules/quotes/services/quotes.ts, `approveVersion`
+// — na MESMA transação em que hoje já reserva filamento/cria ProductionOrder
+// (quando a versão tem job), agora também cria a AccountsReceivable (status
+// PREVISTO, valor = QuoteVersion.finalValue) e UMA PaymentInstallment inicial
+// cobrindo o valor total. Isso acontece SEMPRE que uma versão é aprovada, com
+// OU SEM job — diferente da reserva de estoque, que só existe quando há job.
+// O usuário pode redistribuir em mais parcelas depois via `splitInstallments`
+// (só permitido antes de qualquer pagamento registrado — ver comentário na
+// função).
+//
+// Status da parcela (`PaymentInstallment.status`) É PRÓPRIO, não herdado do
+// pai — decisão explícita: cada parcela tem seu próprio ciclo de vida
+// (paga/parcial/vencida independente das demais), e o agregado da
+// AccountsReceivable é recalculado a partir de TODAS as parcelas a cada
+// escrita (`recordPayment`/`reverseTransaction`,
+// src/modules/finance/services/receivables.ts — funções puras
+// `computeInstallmentStatus`/`computeAggregateStatus` em
+// src/modules/finance/format.ts). "VENCIDO" é calculado nesse momento (nunca
+// por um cron/job agendado) comparando `dueDate` com a data da escrita — o
+// valor gravado no banco pode ficar defasado entre duas escritas (mesma
+// limitação documentada de outros "contadores calculados" deste projeto,
+// ex. `getProductionDeadlineCounter`), mas a leitura de tela sempre pode
+// recomputar ao vivo usando as mesmas funções puras, sem gravar nada.
+//
+// Pagamento parcial: `PaymentInstallment.amountPaid` é o valor ACUMULADO já
+// pago desta parcela, distinto de `amount` (valor total da parcela) —
+// `recordPayment` aceita `amount` menor que o saldo restante
+// (`amount - amountPaid`), nunca exige o pagamento integral de uma vez.
+//
+// Estorno: NUNCA apaga/altera a `FinancialTransaction` original — cria uma
+// nova, tipo ESTORNO, valor NEGATIVO (compensatório), vinculada à mesma
+// parcela, referenciando a transação original via `reversesTransactionId`
+// (`@unique` — garante no banco que uma transação só pode ser estornada uma
+// vez, reforçando a checagem já feita em `reverseTransaction`). Motivo
+// obrigatório (validado no service, não imposto pelo schema — mesmo padrão de
+// `QualityCheck.rejectionReason`).
+// ---------------------------------------------------------------------------
+
+enum AccountsReceivableStatus {
+  PREVISTO
+  PENDENTE
+  PARCIALMENTE_PAGO
+  PAGO
+  VENCIDO
+  CANCELADO
+  ESTORNADO
+}
+
+// Status próprio da parcela (ver cabeçalho da seção — não herdado do pai).
+// CANCELADO existe no enum por completude do modelo de dados da Etapa 1 §11,
+// mas nenhuma função deste sprint o atribui — cancelamento manual de parcela
+// é um refinamento futuro fora de escopo (TODO documentado, não inventado).
+enum InstallmentStatus {
+  PENDENTE
+  PARCIALMENTE_PAGO
+  PAGO
+  VENCIDO
+  CANCELADO
+}
+
+// Decisão já confirmada (Etapa 1 §03, "Decidido · Meios de pagamento"): só
+// Pix e maquininha de cartão. Sem boleto/transferência/cartão online — sem
+// gateway de pagamento integrado, a baixa é sempre manual.
+enum PaymentMethod {
+  PIX
+  MAQUININHA
+}
+
+enum FinancialTransactionType {
+  RECEBIMENTO
+  ESTORNO
+}
+
+// Conta a receber (FIN-1) — nasce SEMPRE em status PREVISTO na aprovação de
+// uma QuoteVersion (ver cabeçalho da seção). `grossValue`/`discount`/
+// `netValue` espelham `QuoteVersion.originalValue`/`discount`/`finalValue` no
+// momento da aprovação (snapshot — mesmo espírito de `JobFilament.
+// pricePerKgAtTime`: mesmo que a versão de orçamento não possa mais mudar
+// depois de aprovada, a conta a receber tem seus próprios campos monetários
+// para não depender de um JOIN até QuoteVersion somente para exibir valor).
+model AccountsReceivable {
+  id String @id @default(uuid())
+
+  grossValue Decimal                  @db.Decimal(12, 2)
+  discount   Decimal                  @db.Decimal(12, 2)
+  netValue   Decimal                  @db.Decimal(12, 2)
+  status     AccountsReceivableStatus @default(PREVISTO)
+  dueDate    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+
+  // Uma AccountsReceivable por QuoteVersion aprovada (idempotência da
+  // aprovação — ver cabeçalho da seção). Não confundir com `opportunityId`
+  // acima, que NÃO é único (uma oportunidade pode, em tese, acumular mais de
+  // uma ao longo do tempo se uma renegociação aprovar uma segunda versão).
+  quoteVersionId String       @unique
+  quoteVersion   QuoteVersion @relation(fields: [quoteVersionId], references: [id], onDelete: Restrict)
+
+  installments PaymentInstallment[]
+
+  @@index([opportunityId])
+  @@index([status])
+  @@map("accounts_receivable")
+}
+
+// Parcela de uma AccountsReceivable — nasce uma única parcela cobrindo o
+// valor total na aprovação (FIN-1); `splitInstallments`
+// (src/modules/finance/services/receivables.ts) redistribui em N parcelas
+// depois, sempre antes de qualquer pagamento existir. `amountPaid` é o valor
+// ACUMULADO já recebido desta parcela — nunca editado diretamente, só via
+// `recordPayment`/`reverseTransaction`, que também é quem grava
+// `financial_transactions` (a única fonte que de fato move o caixa).
+model PaymentInstallment {
+  id                String            @id @default(uuid())
+  installmentNumber Int
+  amount            Decimal           @db.Decimal(12, 2)
+  amountPaid        Decimal           @default(0) @db.Decimal(12, 2)
+  dueDate           DateTime?
+  status            InstallmentStatus @default(PENDENTE)
+  // Preenchida quando a parcela fica totalmente PAGA (amountPaid >= amount) —
+  // limpa de novo se um estorno reduzir amountPaid abaixo do total (ver
+  // `reverseTransaction`).
+  paidAt            DateTime?
+  // Reflete a forma de pagamento do registro MAIS RECENTE desta parcela — se
+  // pagamentos parciais usarem formas diferentes (ex.: metade Pix, metade
+  // maquininha), só a mais recente fica aqui; a forma de cada pagamento
+  // individual continua rastreável via `FinancialTransaction`, mas o schema
+  // desta (FinancialTransaction) não guarda forma de pagamento por
+  // decisão explícita do escopo do sprint (ver `FinancialTransaction` abaixo)
+  // — TODO se isso se mostrar insuficiente na prática.
+  paymentMethod     PaymentMethod?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accountsReceivableId String
+  accountsReceivable   AccountsReceivable @relation(fields: [accountsReceivableId], references: [id], onDelete: Restrict)
+
+  transactions FinancialTransaction[]
+
+  @@unique([accountsReceivableId, installmentNumber])
+  @@index([accountsReceivableId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("payment_installments")
+}
+
+// Única fonte que representa dinheiro de fato entrando/saindo do caixa (ver
+// cabeçalho da seção). `amount` é positivo para RECEBIMENTO, negativo
+// (compensatório) para ESTORNO — nunca reescrito depois de criado, nunca
+// apagado. `reversesTransactionId` é preenchido só em uma transação ESTORNO,
+// apontando para a RECEBIMENTO original que ela compensa; `@unique` garante
+// que uma mesma transação original nunca é estornada duas vezes.
+model FinancialTransaction {
+  id              String                   @id @default(uuid())
+  type            FinancialTransactionType
+  amount          Decimal                  @db.Decimal(12, 2)
+  transactionDate DateTime                 @default(now())
+  createdAt       DateTime                 @default(now())
+
+  installmentId String
+  installment   PaymentInstallment @relation(fields: [installmentId], references: [id], onDelete: Restrict)
+
+  registeredById String?
+  registeredBy   User?   @relation("FinancialTransactionRegisteredBy", fields: [registeredById], references: [id], onDelete: SetNull)
+
+  reversesTransactionId String?               @unique
+  reversesTransaction   FinancialTransaction? @relation("TransactionReversal", fields: [reversesTransactionId], references: [id], onDelete: SetNull)
+  reversal              FinancialTransaction? @relation("TransactionReversal")
+
+  @@index([installmentId])
+  @@index([type])
+  @@index([registeredById])
+  @@index([transactionDate])
+  @@map("financial_transactions")
 }

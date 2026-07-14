@@ -3,6 +3,7 @@ import { recordAudit } from "@/modules/audit/services/audit";
 import { NEXT_STAGE, STAGE_LABEL } from "@/modules/crm/format";
 import { getOrCreateOpenCycle } from "@/modules/crm/services/cycles";
 import { hasDeliveredDelivery } from "@/modules/deliveries/services/deliveries";
+import { getAccountsReceivableStatusForOpportunity } from "@/modules/finance/services/receivables";
 import { hasCompletedProductionOrder } from "@/modules/production/services/production";
 import { hasApprovedQualityCheck } from "@/modules/quality/services/quality";
 import { Prisma, type Opportunity, type OpportunityPriority, type OpportunityStage } from "@prisma/client";
@@ -50,6 +51,17 @@ type TransitionSubject = {
   // partir de `hasDeliveredDelivery` — existe uma Delivery mais recente com
   // status ENTREGUE vinculada à oportunidade? Só relevante no case ENTREGA.
   hasDelivered?: boolean;
+  // Sprint 9 (módulo finance): calculados pelo chamador (moveStage) a partir
+  // de `getAccountsReceivableStatusForOpportunity` — existe uma
+  // AccountsReceivable para a oportunidade (situação financeira conhecida —
+  // FIN-1/DEL-2) e, se existir, ela está com status PAGO? Só relevantes no
+  // case ENTREGA. "Situação financeira conhecida" exige só a EXISTÊNCIA do
+  // registro (nasce sempre na aprovação do orçamento, ver
+  // src/modules/quotes/services/quotes.ts, `approveVersion`) — não exige
+  // estar paga: inadimplência nunca bloqueia a conclusão, só precisa ficar
+  // documentada (ver `note` obrigatório abaixo quando não está PAGO).
+  hasAccountsReceivable?: boolean;
+  isAccountsReceivablePaid?: boolean;
 };
 
 /**
@@ -59,10 +71,13 @@ type TransitionSubject = {
  * este é o caso crítico explícito da Etapa 2, seção 05 ("nenhum card pula
  * etapa nem anda por um caminho que não existe, ex. Proposta → Entrega").
  *
- * Pré-condições que dependem de módulos futuros (orçamento, produção,
- * qualidade, entrega, financeiro — Sprints 5 a 9) são deliberadamente NÃO
- * simuladas aqui: são documentadas como TODO inline e não bloqueiam a
- * transição, para não inventar uma regra falsa nem travar o fluxo à toa.
+ * Pré-condições que dependiam de módulos futuros (orçamento, produção,
+ * qualidade, entrega, financeiro — Sprints 5 a 9) foram conectadas de
+ * verdade conforme cada módulo nasceu; a partir do Sprint 9 (finance) as
+ * quatro partes checáveis da pré-condição de Entrega → Concluído (seção 09)
+ * já são reais. Enquanto um módulo ainda não existia, sua parte ficava
+ * documentada como TODO inline em vez de simular uma checagem falsa — mesmo
+ * princípio se algum módulo de expansão futuro (fora do MVP) vier a existir.
  */
 export function validateTransition(
   fromStage: OpportunityStage,
@@ -175,15 +190,15 @@ export function validateTransition(
       // verdade acontece, não no `case "CONCLUIDO"` abaixo (que existe só por
       // completude, ver seu comentário).
       //
-      // A partir do Sprint 8 (módulos inventory/deliveries), as três partes
-      // checáveis hoje são conectadas de verdade: `hasCompletedProduction` e
+      // A partir do Sprint 8 (módulos inventory/deliveries) e do Sprint 9
+      // (módulo finance), as quatro partes da pré-condição da seção 09 são
+      // conectadas de verdade: `hasCompletedProduction` e
       // `hasQualityApproval` são RECALCULADAS aqui (não reaproveitadas dos
       // cases DESENVOLVIMENTO/QUALIDADE acima, que só valem para a transição
-      // imediatamente seguinte à etapa em que cada uma vive) e
-      // `hasDelivered` é novo (Sprint 8, `hasDeliveredDelivery`, módulo
-      // `deliveries`). "Pendências financeiras justificadas" continua como
-      // TODO (Sprint 9 — módulo `finance` ainda não existe): nenhuma
-      // checagem falsa é inventada para essa parte.
+      // imediatamente seguinte à etapa em que cada uma vive), `hasDelivered`
+      // é do Sprint 8 (`hasDeliveredDelivery`, módulo `deliveries`) e
+      // `hasAccountsReceivable`/`isAccountsReceivablePaid` são do Sprint 9
+      // (`getAccountsReceivableStatusForOpportunity`, módulo `finance`).
       if (!subject.hasCompletedProduction) {
         throw new BusinessRuleError(
           "É necessário que a produção desta oportunidade esteja concluída antes de mover para Concluído.",
@@ -199,8 +214,25 @@ export function validateTransition(
           "É necessário que a entrega desta oportunidade esteja registrada com status Entregue antes de mover para Concluído.",
         );
       }
-      // TODO (Sprint 9 — módulo finance): checar aqui "pendências financeiras
-      // justificadas" assim que accounts_receivable existir.
+      // "Situação financeira conhecida" (Sprint 9, FIN-1/DEL-2) exige que
+      // EXISTA uma AccountsReceivable — nasce sempre na aprovação do
+      // orçamento (`approveVersion`), então na prática só falta quando a
+      // oportunidade nunca teve orçamento aprovado, o que já teria barrado
+      // uma transição anterior. Não exige estar PAGA: inadimplência nunca
+      // bloqueia a conclusão (decisão explícita do briefing original) — só
+      // exige que a pendência fique DOCUMENTADA via observação obrigatória
+      // (mesma ideia de nota obrigatória condicional já usada na reprovação
+      // de qualidade, `isQualityRejection` acima).
+      if (!subject.hasAccountsReceivable) {
+        throw new BusinessRuleError(
+          "É necessário que exista uma conta a receber (situação financeira conhecida) antes de mover para Concluído.",
+        );
+      }
+      if (!subject.isAccountsReceivablePaid && (!note || !note.trim())) {
+        throw new BusinessRuleError(
+          "A conta a receber desta oportunidade ainda não está paga — informe uma observação justificando a pendência antes de mover para Concluído.",
+        );
+      }
       break;
 
     case "CONCLUIDO":
@@ -359,10 +391,29 @@ export async function moveStage(
     hasDelivered = await hasDeliveredDelivery(opportunityId);
   }
 
+  // Sprint 9: mesmo padrão acima — só consulta AccountsReceivable quando a
+  // oportunidade está saindo de Entrega (case ENTREGA, a quarta parte da
+  // pré-condição de Entrega → Concluído).
+  let hasAccountsReceivable: boolean | undefined;
+  let isAccountsReceivablePaid: boolean | undefined;
+  if (opportunity.stage === "ENTREGA") {
+    const arStatus = await getAccountsReceivableStatusForOpportunity(opportunityId);
+    hasAccountsReceivable = arStatus.exists;
+    isAccountsReceivablePaid = arStatus.isPaid;
+  }
+
   validateTransition(
     opportunity.stage,
     toStage,
-    { ...opportunity, hasApprovedQuote, hasCompletedProduction, hasQualityApproval, hasDelivered },
+    {
+      ...opportunity,
+      hasApprovedQuote,
+      hasCompletedProduction,
+      hasQualityApproval,
+      hasDelivered,
+      hasAccountsReceivable,
+      isAccountsReceivablePaid,
+    },
     note,
   );
 

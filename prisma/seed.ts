@@ -43,6 +43,10 @@ async function main() {
       slug: PERMISSIONS.DELIVERIES_MANAGE,
       description: "Registrar entrega, checklist de embalagem e marcar como enviada/entregue",
     },
+    {
+      slug: PERMISSIONS.FINANCE_MANAGE,
+      description: "Registrar pagamento (baixa manual), estornar transação e dividir parcelas no financeiro",
+    },
   ];
 
   for (const p of permissionSeeds) {
@@ -98,6 +102,7 @@ async function main() {
     PERMISSIONS.QUALITY_MANAGE,
     PERMISSIONS.INVENTORY_MANAGE,
     PERMISSIONS.DELIVERIES_MANAGE,
+    PERMISSIONS.FINANCE_MANAGE,
   ];
   await prisma.rolePermission.deleteMany({ where: { roleId: admin.id } });
   await prisma.rolePermission.createMany({

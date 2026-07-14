@@ -6,6 +6,7 @@ import { listUsersWithRoles } from "@/modules/auth/services/users";
 import { getDeadlineStatus, formatCurrency, PRIORITY_LABEL, STAGE_LABEL } from "@/modules/crm/format";
 import { getOpportunityById } from "@/modules/crm/services/opportunities";
 import { getDeliveryByOpportunity } from "@/modules/deliveries/services/deliveries";
+import { getAccountsReceivableByOpportunity } from "@/modules/finance/services/receivables";
 import { listInventoryItemsByOpportunity } from "@/modules/inventory/services/inventory";
 import { listJobs } from "@/modules/jobs/services/jobs";
 import { getProductionOrderByOpportunity, listPrinters } from "@/modules/production/services/production";
@@ -16,6 +17,7 @@ import { ProductionOrderView, ProductionPanel, SelectOption } from "./production
 import { QualityCheckView, QualityPanel } from "./quality-panel";
 import { InventoryItemView, InventoryPanel } from "./inventory-panel";
 import { DeliveryView, DeliveryPanel } from "./delivery-panel";
+import { FinanceView, FinancePanel } from "./finance-panel";
 
 function formatMonth(date: Date): string {
   return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(date);
@@ -36,7 +38,7 @@ export default async function OpportunityDetailPage({
   const opportunity = await getOpportunityById(id);
   if (!opportunity) notFound();
 
-  const [quote, jobs, productionOrder, printers, users, qualityHistory, inventoryItems, delivery] =
+  const [quote, jobs, productionOrder, printers, users, qualityHistory, inventoryItems, delivery, accountsReceivable] =
     await Promise.all([
       getQuoteWithVersions(id),
       listJobs(),
@@ -46,6 +48,7 @@ export default async function OpportunityDetailPage({
       getQualityHistoryForOpportunity(id),
       listInventoryItemsByOpportunity(id),
       getDeliveryByOpportunity(id),
+      getAccountsReceivableByOpportunity(id),
     ]);
 
   const versions: QuoteVersionView[] = (quote?.versions ?? []).map((v) => ({
@@ -163,6 +166,34 @@ export default async function OpportunityDetailPage({
   // src/modules/deliveries/services/deliveries.ts, `createDelivery`).
   const canCreateDelivery = opportunity.stage === "ENTREGA";
 
+  const accountsReceivableView: FinanceView | null = accountsReceivable
+    ? {
+        id: accountsReceivable.id,
+        grossValue: accountsReceivable.grossValue.toString(),
+        discount: accountsReceivable.discount.toString(),
+        netValue: accountsReceivable.netValue.toString(),
+        status: accountsReceivable.status,
+        dueDate: accountsReceivable.dueDate ? accountsReceivable.dueDate.toISOString() : null,
+        installments: accountsReceivable.installments.map((installment) => ({
+          id: installment.id,
+          installmentNumber: installment.installmentNumber,
+          amount: installment.amount.toString(),
+          amountPaid: installment.amountPaid.toString(),
+          dueDate: installment.dueDate ? installment.dueDate.toISOString() : null,
+          status: installment.status,
+          paymentMethod: installment.paymentMethod,
+          transactions: installment.transactions.map((t) => ({
+            id: t.id,
+            type: t.type,
+            amount: t.amount.toString(),
+            transactionDate: t.transactionDate.toISOString(),
+            registeredByName: t.registeredBy?.name ?? null,
+            hasReversal: t.reversal !== null,
+          })),
+        })),
+      }
+    : null;
+
   return (
     <div className="max-w-4xl">
       <Link href="/crm" className="text-sm text-accent hover:underline">
@@ -219,6 +250,8 @@ export default async function OpportunityDetailPage({
         <InventoryPanel opportunityId={id} items={inventoryItemsView} />
 
         <DeliveryPanel opportunityId={id} canCreate={canCreateDelivery} delivery={deliveryView} />
+
+        <FinancePanel opportunityId={id} accountsReceivable={accountsReceivableView} />
       </div>
     </div>
   );

@@ -11,6 +11,11 @@ vi.mock("@/lib/prisma", () => {
   const filament = { findUnique: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn() };
   const filamentMovement = { create: vi.fn() };
   const productionOrder = { create: vi.fn() };
+  // Usados só pelo caminho do nascimento da conta a receber (Sprint 9) dentro
+  // de `approveVersion` — `createAccountsReceivableInTx` chama estes no mesmo
+  // `tx` mockado.
+  const accountsReceivable = { create: vi.fn() };
+  const paymentInstallment = { create: vi.fn() };
   const prismaMock: Record<string, unknown> = {
     opportunity,
     job,
@@ -19,6 +24,8 @@ vi.mock("@/lib/prisma", () => {
     filament,
     filamentMovement,
     productionOrder,
+    accountsReceivable,
+    paymentInstallment,
   };
   prismaMock.$transaction = vi.fn(async (cb: (tx: unknown) => unknown) => cb(prismaMock));
   return { prisma: prismaMock };
@@ -45,6 +52,8 @@ const mockedQuoteVersion = vi.mocked(prisma.quoteVersion);
 const mockedFilament = vi.mocked(prisma.filament);
 const mockedFilamentMovement = vi.mocked(prisma.filamentMovement);
 const mockedProductionOrder = vi.mocked(prisma.productionOrder);
+const mockedAccountsReceivable = vi.mocked(prisma.accountsReceivable);
+const mockedPaymentInstallment = vi.mocked(prisma.paymentInstallment);
 
 function resetMocks() {
   mockedOpportunity.findUnique.mockReset();
@@ -62,8 +71,21 @@ function resetMocks() {
   mockedFilament.findUniqueOrThrow.mockReset();
   mockedFilamentMovement.create.mockReset();
   mockedProductionOrder.create.mockReset();
+  mockedAccountsReceivable.create.mockReset();
+  mockedPaymentInstallment.create.mockReset();
   vi.mocked(recordAudit).mockReset();
 }
+
+// Toda `QuoteVersion` aprovada precisa destes campos monetários para o
+// nascimento da conta a receber (Sprint 9) dentro de `approveVersion` — os
+// testes de approveVersion abaixo espalham este objeto por cima do mock
+// específico de cada caso, para não repetir os quatro campos em todo `it`.
+const approvableVersionMoneyFields = {
+  originalValue: new Prisma.Decimal(500),
+  discount: new Prisma.Decimal(0),
+  finalValue: new Prisma.Decimal(500),
+  deliveryDeadline: null,
+};
 
 // --- createVersionFromJob ------------------------------------------------------
 
@@ -276,8 +298,17 @@ describe("approveVersion", () => {
   });
 
   it("aprova uma versão DRAFT/SENT, grava acceptedAt e reflete o status no Quote", async () => {
-    mockedQuoteVersion.findUnique.mockResolvedValue({ id: "qv1", quoteId: "quote1", status: "SENT" } as never);
+    mockedQuoteVersion.findUnique.mockResolvedValue({
+      id: "qv1",
+      quoteId: "quote1",
+      status: "SENT",
+      jobId: null,
+      ...approvableVersionMoneyFields,
+    } as never);
+    mockedQuote.findUnique.mockResolvedValue({ id: "quote1", opportunityId: "op1" } as never);
     mockedQuoteVersion.update.mockResolvedValue({ id: "qv1", status: "APPROVED" } as never);
+    mockedAccountsReceivable.create.mockResolvedValue({ id: "ar1", status: "PREVISTO" } as never);
+    mockedPaymentInstallment.create.mockResolvedValue({ id: "inst1" } as never);
 
     const result = await approveVersion("qv1", "actor1");
 
@@ -313,6 +344,9 @@ describe("approveVersion — reserva de filamento e ordem de produção quando a
       status: "SENT",
       jobId: "job1",
       deliveryDeadline: new Date("2026-08-01"),
+      originalValue: new Prisma.Decimal(500),
+      discount: new Prisma.Decimal(0),
+      finalValue: new Prisma.Decimal(500),
     } as never);
     mockedJob.findUnique.mockResolvedValue({
       id: "job1",
@@ -335,6 +369,10 @@ describe("approveVersion — reserva de filamento e ordem de produção quando a
       .mockResolvedValueOnce({ id: "fil2", availableGrams: new Prisma.Decimal(150) } as never);
     mockedFilamentMovement.create.mockResolvedValue({ id: "mov1" } as never);
     mockedProductionOrder.create.mockResolvedValue({ id: "po1" } as never);
+    // Sprint 9 (FIN-1): a MESMA aprovação também gera a conta a receber —
+    // SEMPRE status PREVISTO (caso crítico "nunca receita já realizada").
+    mockedAccountsReceivable.create.mockResolvedValue({ id: "ar1", status: "PREVISTO" } as never);
+    mockedPaymentInstallment.create.mockResolvedValue({ id: "inst1" } as never);
 
     const result = await approveVersion("qv1", "actor1");
 
@@ -370,6 +408,29 @@ describe("approveVersion — reserva de filamento e ordem de produção quando a
           opportunityId: "op1",
           jobId: "job1",
           printStatus: "AGUARDANDO",
+        }),
+      }),
+    );
+
+    // CASO CRÍTICO (FIN-1): a conta a receber nasce SEMPRE em PREVISTO —
+    // nunca PAGO, nunca receita já realizada — com valor = finalValue da
+    // versão aprovada, e a primeira parcela cobre o valor total.
+    expect(mockedAccountsReceivable.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          opportunityId: "op1",
+          quoteVersionId: "qv1",
+          status: "PREVISTO",
+          netValue: new Prisma.Decimal(500),
+        }),
+      }),
+    );
+    expect(mockedPaymentInstallment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          installmentNumber: 1,
+          amount: new Prisma.Decimal(500),
+          status: "PENDENTE",
         }),
       }),
     );
@@ -414,14 +475,18 @@ describe("approveVersion — reserva de filamento e ordem de produção quando a
     expect(mockedProductionOrder.create).not.toHaveBeenCalled();
   });
 
-  it("versão manual (sem jobId) aprova normalmente sem reservar filamento nem criar ordem de produção", async () => {
+  it("versão manual (sem jobId) aprova normalmente sem reservar filamento nem criar ordem de produção — MAS ainda gera a conta a receber (Sprint 9, sempre com ou sem job)", async () => {
     mockedQuoteVersion.findUnique.mockResolvedValue({
       id: "qv3",
       quoteId: "quote3",
       status: "SENT",
       jobId: null,
+      ...approvableVersionMoneyFields,
     } as never);
+    mockedQuote.findUnique.mockResolvedValue({ id: "quote3", opportunityId: "op3" } as never);
     mockedQuoteVersion.update.mockResolvedValue({ id: "qv3", status: "APPROVED" } as never);
+    mockedAccountsReceivable.create.mockResolvedValue({ id: "ar3", status: "PREVISTO" } as never);
+    mockedPaymentInstallment.create.mockResolvedValue({ id: "inst3" } as never);
 
     const result = await approveVersion("qv3", "actor1");
 
@@ -429,6 +494,11 @@ describe("approveVersion — reserva de filamento e ordem de produção quando a
     expect(mockedJob.findUnique).not.toHaveBeenCalled();
     expect(mockedFilament.updateMany).not.toHaveBeenCalled();
     expect(mockedProductionOrder.create).not.toHaveBeenCalled();
+    // Diferente da reserva de estoque/ordem de produção (que exige job), a
+    // conta a receber nasce SEMPRE que a versão é aprovada.
+    expect(mockedAccountsReceivable.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ opportunityId: "op3", status: "PREVISTO" }) }),
+    );
   });
 });
 

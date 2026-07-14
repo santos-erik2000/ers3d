@@ -26,6 +26,9 @@ vi.mock("@/lib/prisma", () => {
   const delivery = {
     findFirst: vi.fn(),
   };
+  const accountsReceivable = {
+    findFirst: vi.fn(),
+  };
   const prismaMock: Record<string, unknown> = {
     opportunity,
     opportunityStageHistory,
@@ -34,6 +37,7 @@ vi.mock("@/lib/prisma", () => {
     productionOrder,
     qualityCheck,
     delivery,
+    accountsReceivable,
   };
   prismaMock.$transaction = vi.fn(async (cb: (tx: unknown) => unknown) => cb(prismaMock));
   return { prisma: prismaMock };
@@ -58,6 +62,7 @@ const mockedQuoteVersion = vi.mocked(prisma.quoteVersion);
 const mockedProductionOrder = vi.mocked(prisma.productionOrder);
 const mockedQualityCheck = vi.mocked(prisma.qualityCheck);
 const mockedDelivery = vi.mocked(prisma.delivery);
+const mockedAccountsReceivable = vi.mocked(prisma.accountsReceivable);
 
 function resetMocks() {
   mockedOpportunity.findMany.mockReset();
@@ -71,6 +76,7 @@ function resetMocks() {
   mockedProductionOrder.findFirst.mockReset();
   mockedQualityCheck.findFirst.mockReset();
   mockedDelivery.findFirst.mockReset();
+  mockedAccountsReceivable.findFirst.mockReset();
   vi.mocked(recordAudit).mockReset();
 }
 
@@ -160,16 +166,25 @@ describe("validateTransition — CRM-2 (caso crítico: movimentação inválida)
 
 // --- validateTransition: Entrega → Concluído exige qualidade aprovada + produção concluída + entrega registrada (Sprint 8, DEL-2) --
 
-describe("validateTransition — Entrega → Concluído exige qualidade aprovada + produção concluída + entrega ENTREGUE (Sprint 8)", () => {
+describe("validateTransition — Entrega → Concluído exige qualidade aprovada + produção concluída + entrega ENTREGUE + situação financeira conhecida (Sprint 8/9)", () => {
   const base = { value: new Prisma.Decimal(500), deadlineAt: new Date() };
+  // Sprint 9: as três pré-condições do Sprint 8 continuam checadas, mais a
+  // quarta (financeira) — este objeto cobre as quatro por padrão para os
+  // testes que focam em uma pré-condição específica das três anteriores.
+  const allButFinance = {
+    ...base,
+    hasCompletedProduction: true,
+    hasQualityApproval: true,
+    hasDelivered: true,
+  };
 
   it("bloqueia quando a produção não está concluída", () => {
     expect(() =>
       validateTransition("ENTREGA", "CONCLUIDO", {
-        ...base,
+        ...allButFinance,
         hasCompletedProduction: false,
-        hasQualityApproval: true,
-        hasDelivered: true,
+        hasAccountsReceivable: true,
+        isAccountsReceivablePaid: true,
       }),
     ).toThrow(/produção.*concluída/i);
   });
@@ -177,10 +192,10 @@ describe("validateTransition — Entrega → Concluído exige qualidade aprovada
   it("bloqueia quando a qualidade não está aprovada", () => {
     expect(() =>
       validateTransition("ENTREGA", "CONCLUIDO", {
-        ...base,
-        hasCompletedProduction: true,
+        ...allButFinance,
         hasQualityApproval: false,
-        hasDelivered: true,
+        hasAccountsReceivable: true,
+        isAccountsReceivablePaid: true,
       }),
     ).toThrow(/checklist de qualidade/i);
   });
@@ -188,21 +203,52 @@ describe("validateTransition — Entrega → Concluído exige qualidade aprovada
   it("bloqueia quando a entrega ainda não está com status Entregue (caso crítico DEL-2)", () => {
     expect(() =>
       validateTransition("ENTREGA", "CONCLUIDO", {
-        ...base,
-        hasCompletedProduction: true,
-        hasQualityApproval: true,
+        ...allButFinance,
         hasDelivered: false,
+        hasAccountsReceivable: true,
+        isAccountsReceivablePaid: true,
       }),
     ).toThrow(/entrega.*registrada.*status Entregue|status Entregue/i);
   });
 
-  it("permite quando as três pré-condições checáveis hoje são cumpridas", () => {
+  it("bloqueia quando não existe nenhuma AccountsReceivable para a oportunidade (situação financeira desconhecida)", () => {
     expect(() =>
       validateTransition("ENTREGA", "CONCLUIDO", {
-        ...base,
-        hasCompletedProduction: true,
-        hasQualityApproval: true,
-        hasDelivered: true,
+        ...allButFinance,
+        hasAccountsReceivable: false,
+        isAccountsReceivablePaid: false,
+      }),
+    ).toThrow(/conta a receber/i);
+  });
+
+  it("bloqueia quando a conta a receber existe mas não está paga e nenhuma observação foi informada (pendência precisa ficar documentada)", () => {
+    expect(() =>
+      validateTransition(
+        "ENTREGA",
+        "CONCLUIDO",
+        { ...allButFinance, hasAccountsReceivable: true, isAccountsReceivablePaid: false },
+        undefined,
+      ),
+    ).toThrow(/observação/i);
+  });
+
+  it("permite quando a conta a receber existe, não está paga, mas uma observação justificando a pendência foi informada — NUNCA bloqueia por inadimplência, só exige documentação", () => {
+    expect(() =>
+      validateTransition(
+        "ENTREGA",
+        "CONCLUIDO",
+        { ...allButFinance, hasAccountsReceivable: true, isAccountsReceivablePaid: false },
+        "Cliente combinou pagamento em 30 dias após a entrega.",
+      ),
+    ).not.toThrow();
+  });
+
+  it("permite quando as quatro pré-condições checáveis hoje são cumpridas (conta a receber paga, sem necessidade de observação)", () => {
+    expect(() =>
+      validateTransition("ENTREGA", "CONCLUIDO", {
+        ...allButFinance,
+        hasAccountsReceivable: true,
+        isAccountsReceivablePaid: true,
       }),
     ).not.toThrow();
   });
@@ -561,7 +607,7 @@ describe("moveStage — Qualidade → Entrega exige QualityCheck aprovado/aprova
 
 // --- moveStage: Entrega → Concluído exige as três pré-condições (Sprint 8) --
 
-describe("moveStage — Entrega → Concluído exige produção concluída + qualidade aprovada + entrega ENTREGUE (Sprint 8)", () => {
+describe("moveStage — Entrega → Concluído exige produção concluída + qualidade aprovada + entrega ENTREGUE + situação financeira conhecida (Sprint 8/9)", () => {
   beforeEach(resetMocks);
 
   function mockOpportunityInEntrega() {
@@ -578,6 +624,7 @@ describe("moveStage — Entrega → Concluído exige produção concluída + qua
     mockedProductionOrder.findFirst.mockResolvedValue({ printStatus: "CONCLUIDA" } as never);
     mockedQualityCheck.findFirst.mockResolvedValue({ result: "APROVADO" } as never);
     mockedDelivery.findFirst.mockResolvedValue({ status: "ENVIADO" } as never);
+    mockedAccountsReceivable.findFirst.mockResolvedValue({ status: "PAGO" } as never);
 
     await expect(moveStage("op6", "CONCLUIDO", "actor1")).rejects.toThrow(/status Entregue/i);
 
@@ -593,15 +640,60 @@ describe("moveStage — Entrega → Concluído exige produção concluída + qua
     mockedProductionOrder.findFirst.mockResolvedValue({ printStatus: "FALHOU" } as never);
     mockedQualityCheck.findFirst.mockResolvedValue({ result: "APROVADO" } as never);
     mockedDelivery.findFirst.mockResolvedValue({ status: "ENTREGUE" } as never);
+    mockedAccountsReceivable.findFirst.mockResolvedValue({ status: "PAGO" } as never);
 
     await expect(moveStage("op6", "CONCLUIDO", "actor1")).rejects.toThrow(/produção.*concluída/i);
   });
 
-  it("permite quando produção concluída + qualidade aprovada + entrega ENTREGUE", async () => {
+  it("bloqueia quando não existe nenhuma AccountsReceivable, mesmo com produção/qualidade/entrega OK", async () => {
+    mockOpportunityInEntrega();
+    mockedProductionOrder.findFirst.mockResolvedValue({ printStatus: "CONCLUIDA" } as never);
+    mockedQualityCheck.findFirst.mockResolvedValue({ result: "APROVADO" } as never);
+    mockedDelivery.findFirst.mockResolvedValue({ status: "ENTREGUE" } as never);
+    mockedAccountsReceivable.findFirst.mockResolvedValue(null);
+
+    await expect(moveStage("op6", "CONCLUIDO", "actor1")).rejects.toThrow(/conta a receber/i);
+
+    expect(mockedAccountsReceivable.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { opportunityId: "op6" }, orderBy: { createdAt: "desc" } }),
+    );
+    expect(mockedOpportunity.update).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia quando a AccountsReceivable existe mas não está paga e nenhuma observação foi informada — nunca por inadimplência em si, só por falta de documentação", async () => {
+    mockOpportunityInEntrega();
+    mockedProductionOrder.findFirst.mockResolvedValue({ printStatus: "CONCLUIDA" } as never);
+    mockedQualityCheck.findFirst.mockResolvedValue({ result: "APROVADO" } as never);
+    mockedDelivery.findFirst.mockResolvedValue({ status: "ENTREGUE" } as never);
+    mockedAccountsReceivable.findFirst.mockResolvedValue({ status: "PARCIALMENTE_PAGO" } as never);
+
+    await expect(moveStage("op6", "CONCLUIDO", "actor1")).rejects.toThrow(/observação/i);
+  });
+
+  it("permite mover para Concluído com conta a receber ainda não paga, DESDE QUE uma observação seja informada — inadimplência nunca bloqueia, só precisa ficar documentada", async () => {
+    mockOpportunityInEntrega();
+    mockedProductionOrder.findFirst.mockResolvedValue({ printStatus: "CONCLUIDA" } as never);
+    mockedQualityCheck.findFirst.mockResolvedValue({ result: "APROVADO" } as never);
+    mockedDelivery.findFirst.mockResolvedValue({ status: "ENTREGUE" } as never);
+    mockedAccountsReceivable.findFirst.mockResolvedValue({ status: "VENCIDO" } as never);
+    mockedOpportunity.update.mockResolvedValue({ id: "op6", stage: "CONCLUIDO" } as never);
+
+    const result = await moveStage(
+      "op6",
+      "CONCLUIDO",
+      "actor1",
+      "Cliente sinalizou atraso, pagamento renegociado para o próximo mês.",
+    );
+
+    expect(result).toMatchObject({ id: "op6", stage: "CONCLUIDO" });
+  });
+
+  it("permite quando produção concluída + qualidade aprovada + entrega ENTREGUE + conta a receber PAGA", async () => {
     mockOpportunityInEntrega();
     mockedProductionOrder.findFirst.mockResolvedValue({ printStatus: "CONCLUIDA" } as never);
     mockedQualityCheck.findFirst.mockResolvedValue({ result: "APROVADO_COM_RESSALVA" } as never);
     mockedDelivery.findFirst.mockResolvedValue({ status: "ENTREGUE" } as never);
+    mockedAccountsReceivable.findFirst.mockResolvedValue({ status: "PAGO" } as never);
     mockedOpportunity.update.mockResolvedValue({ id: "op6", stage: "CONCLUIDO" } as never);
 
     const result = await moveStage("op6", "CONCLUIDO", "actor1");
@@ -609,7 +701,7 @@ describe("moveStage — Entrega → Concluído exige produção concluída + qua
     expect(result).toMatchObject({ id: "op6", stage: "CONCLUIDO" });
   });
 
-  it("não consulta Delivery/ProductionOrder/QualityCheck quando a oportunidade não está saindo de Entrega", async () => {
+  it("não consulta Delivery/ProductionOrder/QualityCheck/AccountsReceivable quando a oportunidade não está saindo de Entrega", async () => {
     mockedOpportunity.findUnique.mockResolvedValue({
       id: "op1",
       stage: "PROPOSTA",
@@ -621,6 +713,7 @@ describe("moveStage — Entrega → Concluído exige produção concluída + qua
     await moveStage("op1", "NEGOCIACAO", "actor1");
 
     expect(mockedDelivery.findFirst).not.toHaveBeenCalled();
+    expect(mockedAccountsReceivable.findFirst).not.toHaveBeenCalled();
   });
 });
 

@@ -50,6 +50,13 @@ export const PERMISSIONS = {
   // Registrar/editar entrega (método, rastreio, checklist de embalagem) e
   // marcar como enviada/entregue — Sprint 8, épico E7.
   DELIVERIES_MANAGE: "deliveries.manage",
+  // Escrita no módulo financeiro: registrar pagamento (baixa manual),
+  // estornar transação, dividir parcelas — Sprint 9, épico E8. `FINANCE_READ`
+  // (já existia desde a Fundação, seedada para o perfil Contador) cobre só
+  // leitura — telas de consulta, fluxo de caixa. Um usuário com FINANCE_READ
+  // e sem FINANCE_MANAGE (o caso do Contador) recebe 403 em qualquer escrita
+  // (FIN-3, caso crítico "Contador tenta editar módulo financeiro").
+  FINANCE_MANAGE: "finance.manage",
 } as const;
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

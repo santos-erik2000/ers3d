@@ -16,7 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/calculadora", label: "Calculadora 3D", enabled: true },
   { href: "/estoque", label: "Estoque de filamento", enabled: true },
   { href: "/estoque-pecas", label: "Estoque de peças", enabled: true },
-  { href: "/financeiro", label: "Financeiro", enabled: false },
+  { href: "/financeiro", label: "Financeiro", enabled: true },
   { href: "/relatorios", label: "Relatórios", enabled: false },
   { href: "/usuarios", label: "Usuários & Permissões", enabled: true },
   { href: "/configuracoes", label: "Configurações", enabled: false },

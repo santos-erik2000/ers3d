@@ -24,6 +24,7 @@ import {
   BusinessRuleError as FilamentBusinessRuleError,
   recordMovementInTx,
 } from "@/modules/filaments/services/filaments";
+import { createAccountsReceivableInTx } from "@/modules/finance/services/receivables";
 import { Prisma, type Quote, type QuoteVersion } from "@prisma/client";
 
 export class BusinessRuleError extends Error {}
@@ -305,11 +306,21 @@ export async function sendVersion(quoteVersionId: string, actorUserId: string): 
  * aprovado" (nada fica em estado parcial).
  *
  * TODO (documentado, não um bug): quando a versão é MANUAL (`jobId` nulo),
- * nada disso acontece aqui — não há Job para estimar filamentos. Nesse caso
- * o usuário cria a ordem de produção manualmente
+ * a reserva/ordem automática não acontece — não há Job para estimar
+ * filamentos. Nesse caso o usuário cria a ordem de produção manualmente
  * (src/modules/production/services/production.ts,
  * `createManualProductionOrder`, exposta na UI da página da oportunidade),
  * sem reserva automática de estoque.
+ *
+ * Sprint 9 (FIN-1, módulo finance): na MESMA transação, SEMPRE (com ou sem
+ * job — diferente da reserva de estoque acima) nasce uma
+ * `AccountsReceivable` com status PREVISTO (nunca receita já realizada) e
+ * uma `PaymentInstallment` inicial cobrindo `version.finalValue`
+ * (`createAccountsReceivableInTx`, src/modules/finance/services/receivables.ts
+ * — mesmo padrão de reaproveitar a função do módulo de destino em vez de
+ * duplicar a lógica, já usado para `recordMovementInTx` acima). O valor
+ * negociado aprovado NUNCA é tratado como dinheiro em caixa — só quando um
+ * pagamento é de fato registrado (`recordPayment`) o caixa se move.
  */
 export async function approveVersion(quoteVersionId: string, actorUserId: string): Promise<QuoteVersion> {
   const version = await prisma.quoteVersion.findUnique({ where: { id: quoteVersionId } });
@@ -325,9 +336,14 @@ export async function approveVersion(quoteVersionId: string, actorUserId: string
 
   // Leitura fora da transação (só decide SE vamos reservar/gerar ordem, não
   // aplica nada ainda) — evita segurar a transação de escrita mais que o
-  // necessário enquanto resolvemos de qual job/oportunidade se trata.
+  // necessário enquanto resolvemos de qual job/oportunidade se trata. A conta
+  // a receber (Sprint 9) precisa da oportunidade SEMPRE, com ou sem job — só
+  // o job em si (para estimar filamentos) é condicional.
+  const quote = await prisma.quote.findUnique({ where: { id: version.quoteId } });
+  if (!quote) throw new BusinessRuleError("Orçamento não encontrado.");
+  const opportunityId = quote.opportunityId;
+
   let jobFilaments: { filamentId: string; gramsUsed: Prisma.Decimal }[] = [];
-  let opportunityId: string | null = null;
   if (version.jobId) {
     const job = await prisma.job.findUnique({
       where: { id: version.jobId },
@@ -335,10 +351,6 @@ export async function approveVersion(quoteVersionId: string, actorUserId: string
     });
     if (!job) throw new BusinessRuleError("Job de origem deste orçamento não foi encontrado.");
     jobFilaments = job.jobFilaments.map((jf) => ({ filamentId: jf.filamentId, gramsUsed: jf.gramsUsed }));
-
-    const quote = await prisma.quote.findUnique({ where: { id: version.quoteId } });
-    if (!quote) throw new BusinessRuleError("Orçamento não encontrado.");
-    opportunityId = quote.opportunityId;
   }
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -360,7 +372,7 @@ export async function approveVersion(quoteVersionId: string, actorUserId: string
       tx,
     );
 
-    if (version.jobId && opportunityId) {
+    if (version.jobId) {
       // Reserva cada filamento do job — se QUALQUER um não tiver saldo, o
       // erro propaga e o Prisma reverte a transação inteira (nenhuma
       // aprovação, nenhuma reserva parcial, nenhuma ordem).
@@ -407,6 +419,23 @@ export async function approveVersion(quoteVersionId: string, actorUserId: string
         tx,
       );
     }
+
+    // Sprint 9 (FIN-1): SEMPRE nasce uma conta a receber quando uma versão é
+    // aprovada — com ou sem job, diferente do bloco de reserva/ordem de
+    // produção acima. Status PREVISTO, valor = version.finalValue (nunca
+    // receita já realizada — o caixa só se move em `recordPayment`).
+    await createAccountsReceivableInTx(
+      tx,
+      {
+        opportunityId,
+        quoteVersionId: version.id,
+        grossValue: version.originalValue,
+        discount: version.discount,
+        netValue: version.finalValue,
+        dueDate: version.deliveryDeadline ?? null,
+      },
+      actorUserId,
+    );
 
     return after;
   });
