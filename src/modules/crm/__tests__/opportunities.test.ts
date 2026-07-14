@@ -20,12 +20,16 @@ vi.mock("@/lib/prisma", () => {
   const productionOrder = {
     findFirst: vi.fn(),
   };
+  const qualityCheck = {
+    findFirst: vi.fn(),
+  };
   const prismaMock: Record<string, unknown> = {
     opportunity,
     opportunityStageHistory,
     crmCycle,
     quoteVersion,
     productionOrder,
+    qualityCheck,
   };
   prismaMock.$transaction = vi.fn(async (cb: (tx: unknown) => unknown) => cb(prismaMock));
   return { prisma: prismaMock };
@@ -48,6 +52,7 @@ const mockedHistory = vi.mocked(prisma.opportunityStageHistory);
 const mockedCrmCycle = vi.mocked(prisma.crmCycle);
 const mockedQuoteVersion = vi.mocked(prisma.quoteVersion);
 const mockedProductionOrder = vi.mocked(prisma.productionOrder);
+const mockedQualityCheck = vi.mocked(prisma.qualityCheck);
 
 function resetMocks() {
   mockedOpportunity.findMany.mockReset();
@@ -59,6 +64,7 @@ function resetMocks() {
   mockedCrmCycle.create.mockReset();
   mockedQuoteVersion.findFirst.mockReset();
   mockedProductionOrder.findFirst.mockReset();
+  mockedQualityCheck.findFirst.mockReset();
   vi.mocked(recordAudit).mockReset();
 }
 
@@ -144,10 +150,33 @@ describe("validateTransition — CRM-2 (caso crítico: movimentação inválida)
     ).not.toThrow();
   });
 
-  it("permite os demais passos do fluxo (Qualidade → Entrega, Entrega → Concluído)", () => {
+  it("permite Entrega → Concluído (sem pré-condição adicional checável hoje)", () => {
     const subject = { value: new Prisma.Decimal(0), deadlineAt: null };
-    expect(() => validateTransition("QUALIDADE", "ENTREGA", subject)).not.toThrow();
     expect(() => validateTransition("ENTREGA", "CONCLUIDO", subject)).not.toThrow();
+  });
+});
+
+// --- validateTransition: Qualidade → Entrega exige checklist aprovado (Sprint 7, QUAL-1..2) --
+
+describe("validateTransition — Qualidade → Entrega exige QualityCheck aprovado/aprovado com ressalva (Sprint 7)", () => {
+  it("bloqueia quando não há checklist de qualidade aprovado (ou aprovado com ressalva) mais recente", () => {
+    expect(() =>
+      validateTransition("QUALIDADE", "ENTREGA", {
+        value: new Prisma.Decimal(0),
+        deadlineAt: null,
+        hasQualityApproval: false,
+      }),
+    ).toThrow(/checklist de qualidade/i);
+  });
+
+  it("permite quando o checklist de qualidade mais recente está aprovado (ou aprovado com ressalva)", () => {
+    expect(() =>
+      validateTransition("QUALIDADE", "ENTREGA", {
+        value: new Prisma.Decimal(0),
+        deadlineAt: null,
+        hasQualityApproval: true,
+      }),
+    ).not.toThrow();
   });
 });
 
@@ -335,21 +364,24 @@ describe("moveStage — Desenvolvimento → Qualidade exige ProductionOrder conc
 
     await expect(moveStage("op4", "QUALIDADE", "actor1")).rejects.toThrow(/produção.*concluída/i);
 
+    // hasCompletedProductionOrder (Sprint 7) passou a checar a ordem MAIS
+    // RECENTE (orderBy createdAt desc), não "existe alguma CONCLUIDA alguma
+    // vez" — ver comentário em src/modules/production/services/production.ts.
     expect(mockedProductionOrder.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { opportunityId: "op4", printStatus: "CONCLUIDA" } }),
+      expect.objectContaining({ where: { opportunityId: "op4" }, orderBy: { createdAt: "desc" } }),
     );
     expect(mockedOpportunity.update).not.toHaveBeenCalled();
     expect(mockedHistory.create).not.toHaveBeenCalled();
   });
 
-  it("permite quando existe uma ProductionOrder concluída vinculada à oportunidade", async () => {
+  it("permite quando a ProductionOrder mais recente vinculada à oportunidade está concluída", async () => {
     mockedOpportunity.findUnique.mockResolvedValue({
       id: "op4",
       stage: "DESENVOLVIMENTO",
       value: new Prisma.Decimal(500),
       deadlineAt: new Date(),
     } as never);
-    mockedProductionOrder.findFirst.mockResolvedValue({ id: "po1" } as never);
+    mockedProductionOrder.findFirst.mockResolvedValue({ printStatus: "CONCLUIDA" } as never);
     mockedOpportunity.update.mockResolvedValue({ id: "op4", stage: "QUALIDADE" } as never);
 
     const result = await moveStage("op4", "QUALIDADE", "actor1");
@@ -369,6 +401,102 @@ describe("moveStage — Desenvolvimento → Qualidade exige ProductionOrder conc
     await moveStage("op1", "NEGOCIACAO", "actor1");
 
     expect(mockedProductionOrder.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+// --- moveStage: Qualidade → Entrega exige QualityCheck aprovado (Sprint 7) --
+
+describe("moveStage — Qualidade → Entrega exige QualityCheck aprovado/aprovado com ressalva (Sprint 7)", () => {
+  beforeEach(resetMocks);
+
+  it("bloqueia quando não há nenhum QualityCheck aprovado (ou aprovado com ressalva) vinculado à oportunidade", async () => {
+    mockedOpportunity.findUnique.mockResolvedValue({
+      id: "op5",
+      stage: "QUALIDADE",
+      value: new Prisma.Decimal(500),
+      deadlineAt: new Date(),
+    } as never);
+    mockedQualityCheck.findFirst.mockResolvedValue(null);
+
+    await expect(moveStage("op5", "ENTREGA", "actor1")).rejects.toThrow(/checklist de qualidade/i);
+
+    expect(mockedQualityCheck.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { opportunityId: "op5" }, orderBy: { checkedAt: "desc" } }),
+    );
+    expect(mockedOpportunity.update).not.toHaveBeenCalled();
+    expect(mockedHistory.create).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia quando o QualityCheck mais recente está REPROVADO, mesmo que um mais antigo tenha sido aprovado", async () => {
+    mockedOpportunity.findUnique.mockResolvedValue({
+      id: "op5",
+      stage: "QUALIDADE",
+      value: new Prisma.Decimal(500),
+      deadlineAt: new Date(),
+    } as never);
+    // findFirst com orderBy checkedAt desc já devolve só o mais recente —
+    // simula o mais recente sendo REPROVADO.
+    mockedQualityCheck.findFirst.mockResolvedValue({ result: "REPROVADO" } as never);
+
+    await expect(moveStage("op5", "ENTREGA", "actor1")).rejects.toThrow(/checklist de qualidade/i);
+  });
+
+  it("permite quando o QualityCheck mais recente está APROVADO", async () => {
+    mockedOpportunity.findUnique.mockResolvedValue({
+      id: "op5",
+      stage: "QUALIDADE",
+      value: new Prisma.Decimal(500),
+      deadlineAt: new Date(),
+    } as never);
+    mockedQualityCheck.findFirst.mockResolvedValue({ result: "APROVADO" } as never);
+    mockedOpportunity.update.mockResolvedValue({ id: "op5", stage: "ENTREGA" } as never);
+
+    const result = await moveStage("op5", "ENTREGA", "actor1");
+
+    expect(result).toMatchObject({ id: "op5", stage: "ENTREGA" });
+  });
+
+  it("permite quando o QualityCheck mais recente está APROVADO_COM_RESSALVA", async () => {
+    mockedOpportunity.findUnique.mockResolvedValue({
+      id: "op5",
+      stage: "QUALIDADE",
+      value: new Prisma.Decimal(500),
+      deadlineAt: new Date(),
+    } as never);
+    mockedQualityCheck.findFirst.mockResolvedValue({ result: "APROVADO_COM_RESSALVA" } as never);
+    mockedOpportunity.update.mockResolvedValue({ id: "op5", stage: "ENTREGA" } as never);
+
+    const result = await moveStage("op5", "ENTREGA", "actor1");
+
+    expect(result).toMatchObject({ id: "op5", stage: "ENTREGA" });
+  });
+
+  it("não consulta QualityCheck quando a transição saindo de Qualidade é a reprovação (Qualidade → Desenvolvimento)", async () => {
+    mockedOpportunity.findUnique.mockResolvedValue({
+      id: "op5",
+      stage: "QUALIDADE",
+      value: new Prisma.Decimal(500),
+      deadlineAt: new Date(),
+    } as never);
+    mockedOpportunity.update.mockResolvedValue({ id: "op5", stage: "DESENVOLVIMENTO" } as never);
+
+    await moveStage("op5", "DESENVOLVIMENTO", "actor1", "Motivo qualquer.");
+
+    expect(mockedQualityCheck.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("não consulta QualityCheck quando a oportunidade não está saindo de Qualidade", async () => {
+    mockedOpportunity.findUnique.mockResolvedValue({
+      id: "op1",
+      stage: "PROPOSTA",
+      value: new Prisma.Decimal(0),
+      deadlineAt: null,
+    } as never);
+    mockedOpportunity.update.mockResolvedValue({ id: "op1", stage: "NEGOCIACAO" } as never);
+
+    await moveStage("op1", "NEGOCIACAO", "actor1");
+
+    expect(mockedQualityCheck.findFirst).not.toHaveBeenCalled();
   });
 });
 

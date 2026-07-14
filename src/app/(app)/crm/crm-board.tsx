@@ -57,16 +57,16 @@ const TONE_CLASS: Record<DeadlineTone, string> = {
 };
 
 // planejamento/01-visao-arquitetura.html §09 — a única transição para trás
-// permitida no MVP é a reprovação de qualidade, e ela exige motivo obrigatório.
-function needsNote(from: OpportunityStage, to: OpportunityStage): boolean {
+// permitida no MVP é a reprovação de qualidade. A partir do Sprint 7 (módulo
+// quality), reprovar deixou de ser um atalho de arrastar o card com um motivo
+// solto (window.prompt): reprovar agora SEMPRE roda o checklist formal em
+// /crm/[id] (painel Qualidade), porque é isso que garante o registro do
+// checklist completo E a abertura automática do retrabalho (QUAL-2, caso
+// crítico "Qualidade reprovada gera retrabalho") — um `moveStage` solto por
+// aqui não fazia (nem faz) nada disso. Por isso o quadro não oferece mais
+// esse drop como uma movimentação válida; ver `isBlockedQualityRejection`.
+function isBlockedQualityRejection(from: OpportunityStage, to: OpportunityStage): boolean {
   return from === "QUALIDADE" && to === "DESENVOLVIMENTO";
-}
-
-function promptForRejectionNote(title: string): string | null {
-  const note = window.prompt(
-    `Motivo obrigatório para reprovar "${title}" e devolver para Desenvolvimento:`,
-  );
-  return note && note.trim() ? note.trim() : null;
 }
 
 function OpportunityCardView({
@@ -129,7 +129,7 @@ function DraggableCard({
   onQuickMove,
 }: {
   opportunity: BoardOpportunity;
-  onQuickMove: (id: string, to: OpportunityStage, note?: string) => void;
+  onQuickMove: (id: string, to: OpportunityStage) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: opportunity.id,
@@ -139,14 +139,11 @@ function DraggableCard({
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
   const nextStage = NEXT_STAGE[opportunity.stage];
 
+  // O botão de avanço rápido só anda para FRENTE (NEXT_STAGE nunca aponta
+  // para trás) — não passa pelo caminho de reprovação, que agora só existe
+  // pelo painel de Qualidade (ver comentário de `isBlockedQualityRejection`).
   function handleQuickMove() {
     if (!nextStage) return;
-    if (needsNote(opportunity.stage, nextStage)) {
-      const note = promptForRejectionNote(opportunity.title);
-      if (!note) return;
-      onQuickMove(opportunity.id, nextStage, note);
-      return;
-    }
     onQuickMove(opportunity.id, nextStage);
   }
 
@@ -237,7 +234,7 @@ export function CrmBoard({
     });
   }, [opportunities, filters]);
 
-  async function applyMove(opportunityId: string, toStage: OpportunityStage, note?: string) {
+  async function applyMove(opportunityId: string, toStage: OpportunityStage) {
     const previous = opportunities;
     // Otimista: reflete o novo estágio na hora, sem esperar o round-trip do
     // servidor — a validação de verdade acontece no service (moveStage), e se
@@ -245,7 +242,7 @@ export function CrmBoard({
     setOpportunities((prev) => prev.map((o) => (o.id === opportunityId ? { ...o, stage: toStage } : o)));
     setError(null);
 
-    const result = await moveOpportunityStageAction(opportunityId, toStage, note);
+    const result = await moveOpportunityStageAction(opportunityId, toStage);
     if (result.error) {
       setOpportunities(previous);
       setError(result.error);
@@ -269,10 +266,10 @@ export function CrmBoard({
     const toStage = over.id as OpportunityStage;
     if (toStage === opportunity.stage) return;
 
-    if (needsNote(opportunity.stage, toStage)) {
-      const note = promptForRejectionNote(opportunity.title);
-      if (!note) return;
-      void applyMove(opportunity.id, toStage, note);
+    if (isBlockedQualityRejection(opportunity.stage, toStage)) {
+      setError(
+        'Reprovação de qualidade agora é feita pelo checklist na página da oportunidade ("Abrir orçamento" → painel Qualidade) — isso garante o registro do checklist completo e a abertura automática do retrabalho.',
+      );
       return;
     }
 

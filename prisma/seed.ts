@@ -31,6 +31,10 @@ async function main() {
       slug: PERMISSIONS.PRODUCTION_MANAGE,
       description: "Criar/editar ordens de produção e concluir produção (apontamento de horas/gramas reais)",
     },
+    {
+      slug: PERMISSIONS.QUALITY_MANAGE,
+      description: "Registrar checklist de qualidade (aprovar/reprovar/aprovar com ressalva)",
+    },
   ];
 
   for (const p of permissionSeeds) {
@@ -83,6 +87,7 @@ async function main() {
     PERMISSIONS.JOBS_MANAGE,
     PERMISSIONS.QUOTES_MANAGE,
     PERMISSIONS.PRODUCTION_MANAGE,
+    PERMISSIONS.QUALITY_MANAGE,
   ];
   await prisma.rolePermission.deleteMany({ where: { roleId: admin.id } });
   await prisma.rolePermission.createMany({

@@ -45,6 +45,9 @@ model User {
   // Ordens de produção onde este usuário é o responsável técnico (Sprint 6 —
   // production_orders.responsible_id).
   responsibleProductionOrders ProductionOrder[]         @relation("ProductionOrderResponsible")
+  // Checklists de qualidade registrados por este usuário (Sprint 7 —
+  // quality_checks.checked_by_id).
+  qualityChecksPerformed      QualityCheck[]            @relation("QualityCheckChecker")
 
   @@map("users")
 }
@@ -321,6 +324,11 @@ model Opportunity {
   // unicidade para não travar um retrabalho futuro (Sprint 7) que precise de
   // mais de uma ordem ao longo do tempo.
   productionOrders ProductionOrder[]
+  // Checklists de qualidade (Sprint 7) rodados para esta oportunidade —
+  // normalmente um por ciclo de produção (original + um por retrabalho), o
+  // histórico completo (inclusive reprovações antigas) fica sempre
+  // consultável (QUAL-3), nunca apagado.
+  qualityChecks    QualityCheck[]
 
   @@index([customerId])
   @@index([ownerId])
@@ -788,6 +796,10 @@ model ProductionOrder {
   responsible   User?   @relation("ProductionOrderResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
 
   filamentMovements FilamentMovement[]
+  // Checklists de qualidade rodados contra esta ordem específica (Sprint 7)
+  // — uma ordem de retrabalho (aberta na reprovação) recebe seu próprio
+  // checklist depois de concluída de novo.
+  qualityChecks     QualityCheck[]
 
   @@index([opportunityId])
   @@index([jobId])
@@ -795,4 +807,92 @@ model ProductionOrder {
   @@index([responsibleId])
   @@index([printStatus])
   @@map("production_orders")
+}
+
+// ---------------------------------------------------------------------------
+// Qualidade (Etapa 5, Sprint 7 — épico E6, histórias QUAL-1..QUAL-3). Roda um
+// checklist (hoje uma lista fixa de itens — dimensões, integridade
+// estrutural, cor, acabamento, resistência, encaixe, quantidade,
+// personalização, limpeza, embalagem; ver
+// src/modules/quality/format.ts, QUALITY_CHECKLIST_ITEMS — checklist
+// configurável de verdade é um refinamento futuro, fora de escopo aqui)
+// contra uma ProductionOrder já CONCLUIDA (Sprint 6).
+//
+// Reprovação (QUAL-2, caso crítico explícito "Qualidade reprovada gera
+// retrabalho" — planejamento/02-personas-jornadas-historias.html §05): motivo
+// obrigatório, devolve a Opportunity para DESENVOLVIMENTO e abre uma nova
+// ProductionOrder (status AGUARDANDO, mesmo jobId da ordem original — permite
+// consumo adicional de material quando o retrabalho for concluído,
+// reaproveitando `completeProduction` já existente sem recriar a lógica de
+// reconciliação de estoque) — tudo na MESMA transação
+// (src/modules/quality/services/quality.ts, `submitQualityCheck`). Esse
+// service não importa `src/modules/crm/services/opportunities.ts` nem
+// `src/modules/production/services/production.ts` para fazer essa escrita:
+// como `opportunities.ts` já depende deste módulo (pré-condição real de
+// Qualidade → Entrega, ver `hasApprovedQualityCheck`), importar de volta
+// fecharia um ciclo entre módulos de serviço — o mesmo problema já resolvido
+// entre `quotes` e `production` (ver comentário em `approveVersion`,
+// src/modules/quotes/services/quotes.ts): a escrita é feita diretamente, no
+// mesmo formato que `moveStage`/a criação de ordem já produzem, dentro da
+// transação.
+//
+// O QualityCheck reprovado e seus itens NUNCA são apagados nem alterados
+// depois — ficam no histórico para sempre, mesmo que um retrabalho seguinte
+// seja aprovado (QUAL-3, `getQualityHistoryForOpportunity`).
+//
+// `evidencePhotoUrl` é só um campo de texto/URL por enquanto — upload real de
+// arquivo é módulo `files`, fora de escopo deste sprint.
+// ---------------------------------------------------------------------------
+
+enum QualityCheckResult {
+  APROVADO
+  REPROVADO
+  APROVADO_COM_RESSALVA
+}
+
+model QualityCheck {
+  id     String             @id @default(uuid())
+  result QualityCheckResult
+
+  // Obrigatório quando result = REPROVADO (validado em
+  // src/modules/quality/services/quality.ts, nunca imposto pelo schema) —
+  // null nos demais resultados.
+  rejectionReason String?
+
+  checkedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Restrict)
+
+  checkedById String?
+  checkedBy   User?   @relation("QualityCheckChecker", fields: [checkedById], references: [id], onDelete: SetNull)
+
+  items QualityCheckItem[]
+
+  @@index([opportunityId])
+  @@index([productionOrderId])
+  @@index([checkedById])
+  @@index([checkedAt])
+  @@map("quality_checks")
+}
+
+// Um item do checklist por linha — hoje sempre os itens fixos de
+// QUALITY_CHECKLIST_ITEMS, um QualityCheckItem por item marcado no momento do
+// checklist. `notes`/`evidencePhotoUrl` são opcionais por item.
+model QualityCheckItem {
+  id               String  @id @default(uuid())
+  label            String
+  passed           Boolean
+  notes            String?
+  evidencePhotoUrl String?
+
+  qualityCheckId String
+  qualityCheck   QualityCheck @relation(fields: [qualityCheckId], references: [id], onDelete: Cascade)
+
+  @@index([qualityCheckId])
+  @@map("quality_check_items")
 }

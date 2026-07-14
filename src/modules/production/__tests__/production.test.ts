@@ -397,16 +397,25 @@ describe("updateProductionOrderDetails", () => {
 describe("hasCompletedProductionOrder", () => {
   beforeEach(resetMocks);
 
-  it("retorna true quando existe uma ordem CONCLUIDA vinculada à oportunidade", async () => {
-    mockedOrder.findFirst.mockResolvedValue({ id: "po1" } as never);
+  it("retorna true quando a ordem MAIS RECENTE vinculada à oportunidade está CONCLUIDA", async () => {
+    mockedOrder.findFirst.mockResolvedValue({ printStatus: "CONCLUIDA" } as never);
     await expect(hasCompletedProductionOrder("op1")).resolves.toBe(true);
     expect(mockedOrder.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { opportunityId: "op1", printStatus: "CONCLUIDA" } }),
+      expect.objectContaining({ where: { opportunityId: "op1" }, orderBy: { createdAt: "desc" } }),
     );
   });
 
-  it("retorna false quando não existe nenhuma", async () => {
+  it("retorna false quando não existe nenhuma ordem", async () => {
     mockedOrder.findFirst.mockResolvedValue(null);
+    await expect(hasCompletedProductionOrder("op1")).resolves.toBe(false);
+  });
+
+  it("retorna false quando a ordem mais recente NÃO está concluída, mesmo que uma ordem mais antiga já tenha sido (Sprint 7 — retrabalho)", async () => {
+    // Cenário do retrabalho: a ordem original já está CONCLUIDA, mas a nova
+    // ordem aberta pela reprovação de qualidade (mais recente) ainda está
+    // AGUARDANDO — não pode liberar Desenvolvimento → Qualidade de novo
+    // usando a ordem antiga.
+    mockedOrder.findFirst.mockResolvedValue({ printStatus: "AGUARDANDO" } as never);
     await expect(hasCompletedProductionOrder("op1")).resolves.toBe(false);
   });
 });

@@ -36,6 +36,11 @@ export const PERMISSIONS = {
   // previstas, status de impressão) e conclusão da produção (apontamento de
   // horas/gramas reais, convertendo reserva em consumo) — Sprint 6, épico E5.
   PRODUCTION_MANAGE: "production.manage",
+  // Registrar o checklist de qualidade (resultado aprovado/reprovado/
+  // aprovado com ressalva) de uma ordem de produção concluída — Sprint 7,
+  // épico E6. A reprovação (via este mesmo checklist) é o que move a
+  // oportunidade de volta para Desenvolvimento e abre o retrabalho.
+  QUALITY_MANAGE: "quality.manage",
 } as const;
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

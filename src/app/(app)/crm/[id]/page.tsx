@@ -7,9 +7,11 @@ import { getDeadlineStatus, formatCurrency, PRIORITY_LABEL, STAGE_LABEL } from "
 import { getOpportunityById } from "@/modules/crm/services/opportunities";
 import { listJobs } from "@/modules/jobs/services/jobs";
 import { getProductionOrderByOpportunity, listPrinters } from "@/modules/production/services/production";
+import { getQualityHistoryForOpportunity } from "@/modules/quality/services/quality";
 import { getQuoteWithVersions } from "@/modules/quotes/services/quotes";
 import { JobOption, QuotePanel, QuoteVersionView } from "./quote-panel";
 import { ProductionOrderView, ProductionPanel, SelectOption } from "./production-panel";
+import { QualityCheckView, QualityPanel } from "./quality-panel";
 
 function formatMonth(date: Date): string {
   return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(date);
@@ -30,12 +32,13 @@ export default async function OpportunityDetailPage({
   const opportunity = await getOpportunityById(id);
   if (!opportunity) notFound();
 
-  const [quote, jobs, productionOrder, printers, users] = await Promise.all([
+  const [quote, jobs, productionOrder, printers, users, qualityHistory] = await Promise.all([
     getQuoteWithVersions(id),
     listJobs(),
     getProductionOrderByOpportunity(id),
     listPrinters(),
     listUsersWithRoles(),
+    getQualityHistoryForOpportunity(id),
   ]);
 
   const versions: QuoteVersionView[] = (quote?.versions ?? []).map((v) => ({
@@ -92,6 +95,28 @@ export default async function OpportunityDetailPage({
 
   const deadline = getDeadlineStatus(opportunity.deadlineAt, opportunity.stage);
 
+  // Sprint 7 — mesma pré-condição checada de verdade em
+  // src/modules/quality/services/quality.ts (submitQualityCheck): só faz
+  // sentido oferecer o formulário do checklist quando a oportunidade está em
+  // Teste de Qualidade e a ordem de produção mais recente já foi concluída.
+  const canSubmitQualityCheck =
+    opportunity.stage === "QUALIDADE" && productionOrder?.printStatus === "CONCLUIDA";
+
+  const qualityHistoryView: QualityCheckView[] = qualityHistory.map((check) => ({
+    id: check.id,
+    result: check.result,
+    rejectionReason: check.rejectionReason,
+    checkedAt: check.checkedAt.toISOString(),
+    checkedByName: check.checkedBy?.name ?? null,
+    items: check.items.map((item) => ({
+      id: item.id,
+      label: item.label,
+      passed: item.passed,
+      notes: item.notes,
+      evidencePhotoUrl: item.evidencePhotoUrl,
+    })),
+  }));
+
   return (
     <div className="max-w-4xl">
       <Link href="/crm" className="text-sm text-accent hover:underline">
@@ -136,6 +161,13 @@ export default async function OpportunityDetailPage({
           order={productionOrderView}
           printers={printerOptions}
           responsibles={responsibleOptions}
+        />
+
+        <QualityPanel
+          opportunityId={id}
+          canSubmit={canSubmitQualityCheck}
+          productionOrderId={productionOrder?.id ?? null}
+          history={qualityHistoryView}
         />
       </div>
     </div>

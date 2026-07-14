@@ -340,17 +340,28 @@ export async function completeProduction(
 // --- leitura --------------------------------------------------------------------
 
 /**
- * Checa se existe alguma `ProductionOrder` CONCLUIDA vinculada à
- * oportunidade — usado por src/modules/crm/services/opportunities.ts
+ * Checa se a `ProductionOrder` mais recente vinculada à oportunidade está
+ * CONCLUIDA — usado por src/modules/crm/services/opportunities.ts
  * (`moveStage`) para popular a pré-condição real de Desenvolvimento →
  * Qualidade (PROD-3, seção 09 da Etapa 1).
+ *
+ * Checa a MAIS RECENTE, não "existe alguma concluída alguma vez" (mudança do
+ * Sprint 7 — módulo `quality`): a partir de uma reprovação de qualidade, uma
+ * oportunidade pode ter mais de uma ProductionOrder ao longo do tempo (a
+ * original + uma por ciclo de retrabalho,
+ * src/modules/quality/services/quality.ts, `submitQualityCheck`). Se a
+ * checagem aceitasse qualquer ordem concluída no passado, uma oportunidade
+ * voltada para Desenvolvimento por reprovação (com o retrabalho ainda
+ * AGUARDANDO) poderia avançar de novo para Qualidade usando a ordem original
+ * já concluída — pulando a conclusão do retrabalho de verdade.
  */
 export async function hasCompletedProductionOrder(opportunityId: string): Promise<boolean> {
-  const found = await prisma.productionOrder.findFirst({
-    where: { opportunityId, printStatus: "CONCLUIDA" },
-    select: { id: true },
+  const latest = await prisma.productionOrder.findFirst({
+    where: { opportunityId },
+    orderBy: { createdAt: "desc" },
+    select: { printStatus: true },
   });
-  return Boolean(found);
+  return latest?.printStatus === "CONCLUIDA";
 }
 
 export async function listPrinters() {

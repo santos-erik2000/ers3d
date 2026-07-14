@@ -3,6 +3,7 @@ import { recordAudit } from "@/modules/audit/services/audit";
 import { NEXT_STAGE, STAGE_LABEL } from "@/modules/crm/format";
 import { getOrCreateOpenCycle } from "@/modules/crm/services/cycles";
 import { hasCompletedProductionOrder } from "@/modules/production/services/production";
+import { hasApprovedQualityCheck } from "@/modules/quality/services/quality";
 import { Prisma, type Opportunity, type OpportunityPriority, type OpportunityStage } from "@prisma/client";
 
 export class BusinessRuleError extends Error {}
@@ -36,6 +37,12 @@ type TransitionSubject = {
   // com status CONCLUIDA vinculada à oportunidade? Só relevante no case
   // DESENVOLVIMENTO, mesmo padrão de `hasApprovedQuote` acima.
   hasCompletedProduction?: boolean;
+  // Sprint 7 (módulo quality): calculado pelo chamador (moveStage) a partir
+  // de `hasApprovedQualityCheck` — o QualityCheck mais recente da
+  // oportunidade tem result = APROVADO ou APROVADO_COM_RESSALVA? Só relevante
+  // no case QUALIDADE, mesmo padrão de `hasApprovedQuote`/
+  // `hasCompletedProduction` acima.
+  hasQualityApproval?: boolean;
 };
 
 /**
@@ -135,9 +142,20 @@ export function validateTransition(
       break;
 
     case "QUALIDADE":
-      // TODO (Sprint 7 — módulo de qualidade): pré-condição real é
-      // "resultado = aprovado ou aprovado com ressalva" (quality_checks).
-      // Módulo não existe ainda — nenhuma checagem adicional é feita hoje.
+      // Pré-condição (seção 09): "resultado = aprovado ou aprovado com
+      // ressalva". Conectada de verdade a partir do Sprint 7 (módulo
+      // quality): existe um QualityCheck mais recente com esse resultado
+      // vinculado à oportunidade
+      // (src/modules/quality/services/quality.ts, `hasApprovedQualityCheck`).
+      // A reprovação (result = REPROVADO) não passa por este caminho — ela é
+      // a própria transição inversa QUALIDADE → DESENVOLVIMENTO, tratada
+      // pelo `isQualityRejection` acima (motivo obrigatório) e disparada por
+      // `submitQualityCheck`, não por uma chamada solta a `moveStage`.
+      if (!subject.hasQualityApproval) {
+        throw new BusinessRuleError(
+          "É necessário que o checklist de qualidade mais recente tenha resultado aprovado ou aprovado com ressalva antes de mover para Entrega.",
+        );
+      }
       break;
 
     case "ENTREGA":
@@ -273,10 +291,20 @@ export async function moveStage(
     hasCompletedProduction = await hasCompletedProductionOrder(opportunityId);
   }
 
+  // Sprint 7: mesmo padrão acima — só consulta QualityCheck quando a
+  // oportunidade está saindo de Qualidade (case QUALIDADE de
+  // validateTransition). A transição inversa (reprovação, QUALIDADE →
+  // DESENVOLVIMENTO) não usa este campo — ela é decidida pelo motivo
+  // obrigatório do `isQualityRejection`, calculado antes do switch.
+  let hasQualityApproval: boolean | undefined;
+  if (opportunity.stage === "QUALIDADE" && toStage !== "DESENVOLVIMENTO") {
+    hasQualityApproval = await hasApprovedQualityCheck(opportunityId);
+  }
+
   validateTransition(
     opportunity.stage,
     toStage,
-    { ...opportunity, hasApprovedQuote, hasCompletedProduction },
+    { ...opportunity, hasApprovedQuote, hasCompletedProduction, hasQualityApproval },
     note,
   );
 
