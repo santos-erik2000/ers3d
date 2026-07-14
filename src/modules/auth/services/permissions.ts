@@ -31,6 +31,11 @@ export const PERMISSIONS = {
   // aprovar/rejeitar versão, e fechar ciclo mensal do Kanban (Sprint 5 —
   // épico E4 CALC-4/CALC-5, épico E3 CRM-5).
   QUOTES_MANAGE: "quotes.manage",
+  // Ordens de produção: criação manual (versão de orçamento sem job),
+  // atualização de dados técnicos (impressora, responsável, datas
+  // previstas, status de impressão) e conclusão da produção (apontamento de
+  // horas/gramas reais, convertendo reserva em consumo) — Sprint 6, épico E5.
+  PRODUCTION_MANAGE: "production.manage",
 } as const;
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

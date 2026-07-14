@@ -190,28 +190,43 @@ export type RecordMovementInput = {
   filamentId: string;
   type: FilamentMovementType;
   // Magnitude sempre positiva informada pelo usuário para ENTRADA/PERDA/
-  // DEVOLUCAO (o sinal é implícito no tipo); para AJUSTE/CORRECAO é o delta
-  // já assinado (pode ser negativo, ex.: -15 para reduzir 15g), nunca zero.
+  // DEVOLUCAO/RESERVA/LIBERACAO_RESERVA (o sinal é implícito no tipo); para
+  // AJUSTE/CORRECAO é o delta já assinado (pode ser negativo, ex.: -15 para
+  // reduzir 15g), nunca zero.
   quantityGrams: Prisma.Decimal.Value;
   reason?: string | null;
+  // Preenchido só quando a movimentação (RESERVA/LIBERACAO_RESERVA) é
+  // originada de uma ordem de produção (Sprint 6) — rastreabilidade.
+  productionOrderId?: string | null;
 };
 
 /**
  * Resolve o delta assinado (positivo aumenta o saldo, negativo reduz) a
  * partir do tipo de movimentação e da quantidade informada pelo usuário.
- * Entrada/Devolução sempre somam; Perda sempre subtrai; Ajuste/Correção
- * aceitam o delta diretamente (pode ir em qualquer direção), mas nunca zero
- * (isso não seria uma movimentação real).
+ * Entrada/Devolução/Liberação de reserva sempre somam; Perda/Reserva sempre
+ * subtraem; Ajuste/Correção aceitam o delta diretamente (pode ir em qualquer
+ * direção), mas nunca zero (isso não seria uma movimentação real).
+ *
+ * RESERVA (Sprint 6 — PROD-1) debita o saldo disponível tanto na reserva
+ * inicial (aprovação do orçamento) quanto no consumo adicional na conclusão
+ * da produção, quando as gramas reais excedem o estimado — é sempre um
+ * débito, igual PERDA. LIBERACAO_RESERVA (Sprint 6 — PROD-3) credita de
+ * volta quando as gramas reais são menores que o reservado — sempre um
+ * crédito, igual ENTRADA/DEVOLUCAO. Ver src/modules/quotes/services/quotes.ts
+ * (`approveVersion`) e src/modules/production/services/production.ts
+ * (`completeProduction`).
  */
 function resolveDelta(type: FilamentMovementType, quantityGrams: Prisma.Decimal): Prisma.Decimal {
   switch (type) {
     case "ENTRADA":
     case "DEVOLUCAO":
+    case "LIBERACAO_RESERVA":
       if (quantityGrams.lessThanOrEqualTo(0)) {
         throw new BusinessRuleError("A quantidade da movimentação deve ser maior que zero.");
       }
       return quantityGrams;
     case "PERDA":
+    case "RESERVA":
       if (quantityGrams.lessThanOrEqualTo(0)) {
         throw new BusinessRuleError("A quantidade da movimentação deve ser maior que zero.");
       }
@@ -228,22 +243,33 @@ function resolveDelta(type: FilamentMovementType, quantityGrams: Prisma.Decimal)
 }
 
 /**
- * Registra uma movimentação de estoque de filamento — sempre em transação,
- * nunca permite o saldo ficar negativo (PROD-5, caso crítico da Etapa 2 §05:
+ * Núcleo transacional de `recordMovement` — recebe um `tx` já aberto (em vez
+ * de abrir sua própria transação) para poder ser reaproveitado DENTRO da
+ * transação de outra operação de negócio maior, sem duplicar a lógica de
+ * saldo (regra do CLAUDE.md: reaproveitar `recordMovement`, não recriar).
+ * Usado tanto por `recordMovement` (abre sua própria transação, uso
+ * standalone da tela de estoque) quanto por
+ * src/modules/quotes/services/quotes.ts (`approveVersion` — reserva
+ * atômica de cada filamento do job, tudo ou nada com a aprovação da versão)
+ * e src/modules/production/services/production.ts (`completeProduction` —
+ * conversão de reserva em consumo real, tudo ou nada com a conclusão).
+ *
+ * Nunca permite o saldo ficar negativo (PROD-5, caso crítico da Etapa 2 §05:
  * "impedir consumo/reserva de filamento sem saldo"). A checagem de saldo
  * suficiente é feita como parte da própria escrita condicional no banco
  * (`updateMany` com filtro `availableGrams >= mínimo necessário`), não como
  * um "ler saldo, decidir, escrever" separado — isso é o que garante que, sob
- * concorrência (dois usuários mexendo no mesmo filamento ao mesmo tempo),
- * só uma das duas operações vence e a outra recebe erro de saldo
- * insuficiente, nunca as duas passando e o saldo indo negativo.
+ * concorrência (dois usuários/duas reservas mexendo no mesmo filamento ao
+ * mesmo tempo), só uma das duas operações vence e a outra recebe erro de
+ * saldo insuficiente, nunca as duas passando e o saldo indo negativo.
  *
  * `balanceBefore`/`balanceAfter` são gravados a partir do saldo real lido
  * de volta do banco DEPOIS da escrita bem-sucedida (dentro da mesma
  * transação) — nunca de uma leitura feita antes da escrita, que poderia
  * estar desatualizada.
  */
-export async function recordMovement(
+export async function recordMovementInTx(
+  tx: Prisma.TransactionClient,
   input: RecordMovementInput,
   actorUserId: string,
 ): Promise<{ filament: Filament; movement: FilamentMovement }> {
@@ -251,59 +277,69 @@ export async function recordMovement(
   const delta = resolveDelta(input.type, quantityGrams);
   const reason = input.reason?.trim() || null;
 
-  const result = await prisma.$transaction(async (tx) => {
-    const filament = await tx.filament.findUnique({ where: { id: input.filamentId } });
-    if (!filament) throw new BusinessRuleError("Filamento não encontrado.");
+  const filament = await tx.filament.findUnique({ where: { id: input.filamentId } });
+  if (!filament) throw new BusinessRuleError("Filamento não encontrado.");
 
-    // Se delta é negativo, precisamos de availableGrams >= |delta| para não
-    // ficar negativo; se é positivo, qualquer saldo atual serve (>= 0).
-    const minimumRequired = delta.isNegative() ? delta.negated() : new Prisma.Decimal(0);
+  // Se delta é negativo, precisamos de availableGrams >= |delta| para não
+  // ficar negativo; se é positivo, qualquer saldo atual serve (>= 0).
+  const minimumRequired = delta.isNegative() ? delta.negated() : new Prisma.Decimal(0);
 
-    const updateResult = await tx.filament.updateMany({
-      where: { id: input.filamentId, availableGrams: { gte: minimumRequired } },
-      data: { availableGrams: { increment: delta }, version: { increment: 1 } },
-    });
-
-    if (updateResult.count === 0) {
-      throw new BusinessRuleError(
-        `Saldo insuficiente: o filamento "${filament.name}" tem ${filament.availableGrams.toString()}g ` +
-          `disponíveis, e esta movimentação exigiria reduzir ${minimumRequired.toString()}g.`,
-      );
-    }
-
-    const updatedFilament = await tx.filament.findUniqueOrThrow({ where: { id: input.filamentId } });
-    const balanceAfter = updatedFilament.availableGrams;
-    const balanceBefore = balanceAfter.minus(delta);
-
-    const movement = await tx.filamentMovement.create({
-      data: {
-        filamentId: input.filamentId,
-        type: input.type,
-        quantityGrams: delta,
-        balanceBefore,
-        balanceAfter,
-        reason,
-        userId: actorUserId,
-      },
-    });
-
-    await recordAudit(
-      {
-        entityType: "filament",
-        entityId: input.filamentId,
-        action: `filament.movement.${input.type.toLowerCase()}`,
-        before: { availableGrams: balanceBefore.toString() },
-        after: { availableGrams: balanceAfter.toString() },
-        reason: reason ?? undefined,
-        userId: actorUserId,
-      },
-      tx,
-    );
-
-    return { filament: updatedFilament, movement };
+  const updateResult = await tx.filament.updateMany({
+    where: { id: input.filamentId, availableGrams: { gte: minimumRequired } },
+    data: { availableGrams: { increment: delta }, version: { increment: 1 } },
   });
 
-  return result;
+  if (updateResult.count === 0) {
+    throw new BusinessRuleError(
+      `Saldo insuficiente: o filamento "${filament.name}" tem ${filament.availableGrams.toString()}g ` +
+        `disponíveis, e esta movimentação exigiria reduzir ${minimumRequired.toString()}g.`,
+    );
+  }
+
+  const updatedFilament = await tx.filament.findUniqueOrThrow({ where: { id: input.filamentId } });
+  const balanceAfter = updatedFilament.availableGrams;
+  const balanceBefore = balanceAfter.minus(delta);
+
+  const movement = await tx.filamentMovement.create({
+    data: {
+      filamentId: input.filamentId,
+      type: input.type,
+      quantityGrams: delta,
+      balanceBefore,
+      balanceAfter,
+      reason,
+      userId: actorUserId,
+      productionOrderId: input.productionOrderId ?? null,
+    },
+  });
+
+  await recordAudit(
+    {
+      entityType: "filament",
+      entityId: input.filamentId,
+      action: `filament.movement.${input.type.toLowerCase()}`,
+      before: { availableGrams: balanceBefore.toString() },
+      after: { availableGrams: balanceAfter.toString() },
+      reason: reason ?? undefined,
+      userId: actorUserId,
+    },
+    tx,
+  );
+
+  return { filament: updatedFilament, movement };
+}
+
+/**
+ * Registra uma movimentação de estoque de filamento em uma transação
+ * própria — uso standalone (tela de estoque, Sprint 4). Ver
+ * `recordMovementInTx` para o núcleo reaproveitado por outros módulos dentro
+ * de uma transação maior.
+ */
+export async function recordMovement(
+  input: RecordMovementInput,
+  actorUserId: string,
+): Promise<{ filament: Filament; movement: FilamentMovement }> {
+  return prisma.$transaction((tx) => recordMovementInTx(tx, input, actorUserId));
 }
 
 export async function listMovements(filamentId?: string, limit = 50) {

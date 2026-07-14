@@ -2,11 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/modules/auth/services/guard";
 import { PERMISSIONS } from "@/modules/auth/services/permissions";
+import { listUsersWithRoles } from "@/modules/auth/services/users";
 import { getDeadlineStatus, formatCurrency, PRIORITY_LABEL, STAGE_LABEL } from "@/modules/crm/format";
 import { getOpportunityById } from "@/modules/crm/services/opportunities";
 import { listJobs } from "@/modules/jobs/services/jobs";
+import { getProductionOrderByOpportunity, listPrinters } from "@/modules/production/services/production";
 import { getQuoteWithVersions } from "@/modules/quotes/services/quotes";
 import { JobOption, QuotePanel, QuoteVersionView } from "./quote-panel";
+import { ProductionOrderView, ProductionPanel, SelectOption } from "./production-panel";
 
 function formatMonth(date: Date): string {
   return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(date);
@@ -27,7 +30,13 @@ export default async function OpportunityDetailPage({
   const opportunity = await getOpportunityById(id);
   if (!opportunity) notFound();
 
-  const [quote, jobs] = await Promise.all([getQuoteWithVersions(id), listJobs()]);
+  const [quote, jobs, productionOrder, printers, users] = await Promise.all([
+    getQuoteWithVersions(id),
+    listJobs(),
+    getProductionOrderByOpportunity(id),
+    listPrinters(),
+    listUsersWithRoles(),
+  ]);
 
   const versions: QuoteVersionView[] = (quote?.versions ?? []).map((v) => ({
     id: v.id,
@@ -54,6 +63,32 @@ export default async function OpportunityDetailPage({
     label: j.project.name,
     finalPrice: j.finalPrice.toString(),
   }));
+
+  const productionOrderView: ProductionOrderView | null = productionOrder
+    ? {
+        id: productionOrder.id,
+        printStatus: productionOrder.printStatus,
+        plannedStartAt: productionOrder.plannedStartAt ? productionOrder.plannedStartAt.toISOString() : null,
+        plannedEndAt: productionOrder.plannedEndAt ? productionOrder.plannedEndAt.toISOString() : null,
+        actualHours: productionOrder.actualHours ? productionOrder.actualHours.toString() : null,
+        technicalNotes: productionOrder.technicalNotes,
+        completedAt: productionOrder.completedAt ? productionOrder.completedAt.toISOString() : null,
+        printerId: productionOrder.printerId,
+        printerName: productionOrder.printer?.name ?? null,
+        responsibleId: productionOrder.responsibleId,
+        responsibleName: productionOrder.responsible?.name ?? null,
+        jobId: productionOrder.jobId,
+        filaments: (productionOrder.job?.jobFilaments ?? []).map((jf) => ({
+          filamentId: jf.filamentId,
+          filamentName: jf.filament.name,
+          gramsUsed: jf.gramsUsed.toString(),
+          gramsActual: jf.gramsActual ? jf.gramsActual.toString() : null,
+        })),
+      }
+    : null;
+
+  const printerOptions: SelectOption[] = printers.map((p) => ({ id: p.id, name: p.name }));
+  const responsibleOptions: SelectOption[] = users.map((u) => ({ id: u.id, name: u.name }));
 
   const deadline = getDeadlineStatus(opportunity.deadlineAt, opportunity.stage);
 
@@ -94,6 +129,13 @@ export default async function OpportunityDetailPage({
           lostReason={quote?.lostReason ?? null}
           versions={versions}
           jobs={jobOptions}
+        />
+
+        <ProductionPanel
+          opportunityId={id}
+          order={productionOrderView}
+          printers={printerOptions}
+          responsibles={responsibleOptions}
         />
       </div>
     </div>

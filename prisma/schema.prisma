@@ -28,20 +28,23 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  userRoles             UserRole[]
-  auditLogs             AuditLog[]
+  userRoles                   UserRole[]
+  auditLogs                   AuditLog[]
   // Clientes onde este usuário é o responsável comercial (Sprint 2 — customers.ownerId).
-  customers             Customer[]
+  customers                   Customer[]
   // Oportunidades onde este usuário é o responsável comercial (Sprint 3 — opportunities.ownerId).
-  ownedOpportunities    Opportunity[]             @relation("OpportunityOwner")
+  ownedOpportunities          Opportunity[]             @relation("OpportunityOwner")
   // Movimentações de etapa do Kanban feitas por este usuário (Sprint 3).
-  opportunityStageMoves OpportunityStageHistory[] @relation("OpportunityStageMover")
+  opportunityStageMoves       OpportunityStageHistory[] @relation("OpportunityStageMover")
   // Movimentações de estoque de filamento feitas por este usuário (Sprint 4).
-  filamentMovements     FilamentMovement[]        @relation("FilamentMovementActor")
+  filamentMovements           FilamentMovement[]        @relation("FilamentMovementActor")
   // Projetos onde este usuário é o responsável técnico (Sprint 4 — projects.responsibleId).
-  responsibleProjects   Project[]                 @relation("ProjectResponsible")
+  responsibleProjects         Project[]                 @relation("ProjectResponsible")
   // Ciclos mensais fechados por este usuário (Sprint 5 — crm_cycles.closed_by).
-  closedCycles          CrmCycle[]                @relation("CrmCycleClosedBy")
+  closedCycles                CrmCycle[]                @relation("CrmCycleClosedBy")
+  // Ordens de produção onde este usuário é o responsável técnico (Sprint 6 —
+  // production_orders.responsible_id).
+  responsibleProductionOrders ProductionOrder[]         @relation("ProductionOrderResponsible")
 
   @@map("users")
 }
@@ -310,8 +313,14 @@ model Opportunity {
   carriedFromCycleId String?
   carriedFromCycle   CrmCycle? @relation("OpportunityCarriedFromCycle", fields: [carriedFromCycleId], references: [id], onDelete: SetNull)
 
-  stageHistory OpportunityStageHistory[]
-  quotes       Quote[]
+  stageHistory     OpportunityStageHistory[]
+  quotes           Quote[]
+  // Ordens de produção geradas para esta oportunidade (Sprint 6) — normalmente
+  // uma só (criada automaticamente na aprovação de uma versão vinda de Job, ou
+  // manualmente para uma versão manual sem job), mas o schema não impõe
+  // unicidade para não travar um retrabalho futuro (Sprint 7) que precise de
+  // mais de uma ordem ao longo do tempo.
+  productionOrders ProductionOrder[]
 
   @@index([customerId])
   @@index([ownerId])
@@ -356,12 +365,14 @@ model OpportunityStageHistory {
 //
 // Sequenciamento deliberado (planejamento/05-backlog-sprints-dod.html §01):
 // reserva/consumo real de filamento por uma ordem de produção (histórias
-// PROD-1/PROD-3, decisão "Política de estoque" da Etapa 1 §03) só existe a
-// partir do Sprint 6 — por isso `FilamentMovementType` NÃO tem "RESERVA"/
-// "LIBERACAO" ainda, e `Job` não debita `Filament.availableGrams`. Ver TODO
-// em src/modules/jobs/services/jobs.ts. `quotes`/orçamento (CALC-4/CALC-5) e
-// o vínculo Job → Orçamento → Opportunity são Sprint 5 — não há FK daqui para
-// `opportunities` ainda.
+// PROD-1/PROD-3, decisão "Política de estoque" da Etapa 1 §03) passou a
+// existir a partir do Sprint 6 — `FilamentMovementType` ganhou "RESERVA"/
+// "LIBERACAO_RESERVA" (ver `ProductionOrder` mais abaixo e
+// src/modules/quotes/services/quotes.ts, `approveVersion`, e
+// src/modules/production/services/production.ts, `completeProduction`).
+// `Job` continua imutável e não debita `Filament.availableGrams` diretamente
+// — quem debita é a aprovação da versão de orçamento (reserva) e a conclusão
+// da produção (ajuste reserva→consumo real via `JobFilament.gramsActual`).
 // ---------------------------------------------------------------------------
 
 enum FilamentStatus {
@@ -369,15 +380,22 @@ enum FilamentStatus {
   INACTIVE
 }
 
-// Tipos de movimentação de estoque cobertos neste sprint. "RESERVA" e
-// "LIBERACAO" (ligados a um job de produção real) entram no Sprint 6 — ver
-// nota acima.
+// Tipos de movimentação de estoque. "RESERVA" debita o saldo disponível no
+// momento da aprovação do orçamento (Negociação → Desenvolvimento, decisão
+// "Política de estoque" já confirmada na Etapa 1 §03) e também cobre consumo
+// adicional na conclusão da produção quando as gramas reais excedem o
+// estimado; "LIBERACAO_RESERVA" credita de volta quando as gramas reais são
+// menores que o reservado, ou quando uma reserva precisa ser desfeita. Ambas
+// passam pela mesma escrita condicional atômica de `recordMovementInTx`
+// (src/modules/filaments/services/filaments.ts) — nunca um caminho próprio.
 enum FilamentMovementType {
   ENTRADA
   AJUSTE
   PERDA
   DEVOLUCAO
   CORRECAO
+  RESERVA
+  LIBERACAO_RESERVA
 }
 
 // Estoque de matéria-prima (filamento). `availableGrams` é o saldo corrente,
@@ -436,9 +454,17 @@ model FilamentMovement {
   userId String?
   user   User?   @relation("FilamentMovementActor", fields: [userId], references: [id], onDelete: SetNull)
 
+  // Preenchido só para RESERVA/LIBERACAO_RESERVA geradas por uma ordem de
+  // produção (Sprint 6) — rastreabilidade de "que ordem reservou/liberou
+  // isto", sem que a origem seja obrigatória para os demais tipos de
+  // movimentação manual (Sprint 4).
+  productionOrderId String?
+  productionOrder   ProductionOrder? @relation(fields: [productionOrderId], references: [id], onDelete: SetNull)
+
   @@index([filamentId])
   @@index([userId])
   @@index([createdAt])
+  @@index([productionOrderId])
   @@map("filament_movements")
 }
 
@@ -520,11 +546,15 @@ model Job {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
 
-  jobFilaments  JobFilament[]
+  jobFilaments     JobFilament[]
   // Versões de orçamento geradas a partir deste job (Sprint 5 — CALC-4). Um
   // mesmo Job pode originar mais de uma QuoteVersion (ex.: reenviado com
   // desconto diferente em uma nova versão) — o Job em si continua imutável.
-  quoteVersions QuoteVersion[]
+  quoteVersions    QuoteVersion[]
+  // Ordens de produção geradas a partir deste job (Sprint 6 — normalmente uma
+  // só, criada automaticamente quando a QuoteVersion correspondente é
+  // aprovada).
+  productionOrders ProductionOrder[]
 
   @@index([projectId])
   @@map("jobs")
@@ -536,16 +566,20 @@ model Job {
 // resultado é sempre o que foi persistido aqui, nunca um recálculo posterior
 // contra `Filament.pricePerKg` atual.
 //
-// TODO (Sprint 6 — módulo de produção): hoje `gramsUsed` é só a estimativa da
-// calculadora, sem nenhum reflexo em `Filament.availableGrams`. Quando a
-// produção real existir, este mesmo registro (ou uma tabela irmã) passa a
-// também guardar `gramsActual` e a acionar `FilamentMovement` do tipo reserva
-///consumo — não redesenhar este schema para isso, só estender.
+// `gramsUsed` é a estimativa da calculadora — reservada (debitada do saldo
+// disponível) quando a versão de orçamento originada deste job é aprovada
+// (src/modules/quotes/services/quotes.ts, `approveVersion`). `gramsActual`
+// (Sprint 6) é preenchido só na conclusão da produção
+// (src/modules/production/services/production.ts, `completeProduction`),
+// com a diferença para `gramsUsed` liberada (LIBERACAO_RESERVA) ou consumida
+// a mais (RESERVA) — nunca redesenhado, só estendido conforme o TODO
+// original previa.
 model JobFilament {
-  id               String  @id @default(uuid())
-  gramsUsed        Decimal @db.Decimal(10, 2)
-  pricePerKgAtTime Decimal @db.Decimal(12, 2)
-  costCalculated   Decimal @db.Decimal(12, 2)
+  id               String   @id @default(uuid())
+  gramsUsed        Decimal  @db.Decimal(10, 2)
+  gramsActual      Decimal? @db.Decimal(10, 2)
+  pricePerKgAtTime Decimal  @db.Decimal(12, 2)
+  costCalculated   Decimal  @db.Decimal(12, 2)
 
   jobId String
   job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
@@ -655,4 +689,110 @@ model QuoteVersion {
   @@index([jobId])
   @@index([status])
   @@map("quote_versions")
+}
+
+// ---------------------------------------------------------------------------
+// Produção (Etapa 5, Sprint 6 — épico E5, histórias PROD-1..PROD-5). Conecta
+// o orçamento aprovado (`QuoteVersion`, Sprint 5) e o job calculado (`Job`,
+// Sprint 4) a uma ordem de produção real, com reserva/consumo de fato de
+// filamento (`FilamentMovement` tipos RESERVA/LIBERACAO_RESERVA).
+//
+// Política de estoque (decisão já confirmada em
+// planejamento/01-visao-arquitetura.html §03, refletida em §09/§11): o
+// filamento é RESERVADO no momento em que uma QuoteVersion vinda de um Job é
+// aprovada (Negociação → Desenvolvimento) — não apenas quando a impressão
+// começa de fato. A conversão para consumo definitivo (gramas reais, que
+// podem diferir da estimativa) acontece ao concluir a produção
+// (`completeProduction`, src/modules/production/services/production.ts):
+// diferença a mais é consumida (nova RESERVA, validando saldo adicional),
+// diferença a menos é devolvida (LIBERACAO_RESERVA). Tudo em transação — se
+// qualquer filamento não tiver saldo, nada é aplicado (caso crítico PROD-5 /
+// "Editar job já com estoque reservado" da Etapa 2 §05).
+//
+// Impressoras (decisão já confirmada, Etapa 1 §03): só 3 registros esperados,
+// sem agenda visual/calendário — `Printer` é uma tabela leve só para nomear a
+// máquina usada.
+//
+// Vínculo com uma QuoteVersion MANUAL (sem Job): `approveVersion` não reserva
+// nada nem cria ProductionOrder automaticamente nesse caso — TODO documentado
+// em `approveVersion` (src/modules/quotes/services/quotes.ts): o usuário cria
+// a ordem de produção manualmente (`createManualProductionOrder`), vinculada
+// só à Opportunity, sem job/reserva automática (o estoque, se usado, é
+// gerenciado manualmente via `/estoque`, mesma tela do Sprint 4).
+// ---------------------------------------------------------------------------
+
+enum PrinterStatus {
+  ATIVA
+  MANUTENCAO
+  INATIVA
+}
+
+// Tabela leve (Etapa 1 §03, "Decidido · Impressoras") — só nome e status, sem
+// agenda/calendário. ERS 3D opera 3 impressoras hoje; o seed cria essas 3.
+model Printer {
+  id        String        @id @default(uuid())
+  name      String
+  status    PrinterStatus @default(ATIVA)
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  productionOrders ProductionOrder[]
+
+  @@unique([name])
+  @@map("printers")
+}
+
+// Status de impressão da ordem (PROD-2). O "status de prazo" (no prazo /
+// próximo do vencimento / atrasado) NÃO é armazenado — é sempre calculado em
+// runtime a partir de `plannedEndAt` vs. agora
+// (src/modules/production/format.ts, `getProductionDeadlineCounter`), mesma
+// filosofia do indicador de prazo do Kanban (src/modules/crm/format.ts).
+enum ProductionPrintStatus {
+  AGUARDANDO
+  IMPRIMINDO
+  CONCLUIDA
+  FALHOU
+}
+
+model ProductionOrder {
+  id String @id @default(uuid())
+
+  printStatus ProductionPrintStatus @default(AGUARDANDO)
+
+  plannedStartAt DateTime?
+  plannedEndAt   DateTime?
+  // Preenchido só na conclusão (`completeProduction`) — horas reais de
+  // impressão apontadas pelo Operador (PROD-3).
+  actualHours    Decimal?  @db.Decimal(10, 2)
+
+  technicalNotes String?
+  completedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+
+  // Nulo quando a ordem foi criada manualmente a partir de uma QuoteVersion
+  // sem Job (ver cabeçalho da seção) — nesse caso não há JobFilament para
+  // reconciliar e `completeProduction` não faz reserva/consumo de filamento.
+  jobId String?
+  job   Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  printerId String?
+  printer   Printer? @relation(fields: [printerId], references: [id], onDelete: SetNull)
+
+  responsibleId String?
+  responsible   User?   @relation("ProductionOrderResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
+
+  filamentMovements FilamentMovement[]
+
+  @@index([opportunityId])
+  @@index([jobId])
+  @@index([printerId])
+  @@index([responsibleId])
+  @@index([printStatus])
+  @@map("production_orders")
 }

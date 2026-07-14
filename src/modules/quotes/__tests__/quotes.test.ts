@@ -3,9 +3,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/prisma", () => {
   const opportunity = { findUnique: vi.fn() };
   const job = { findUnique: vi.fn() };
-  const quote = { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() };
+  const quote = { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() };
   const quoteVersion = { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() };
-  const prismaMock: Record<string, unknown> = { opportunity, job, quote, quoteVersion };
+  // Usados só pelo caminho de reserva/produção de `approveVersion` (Sprint 6)
+  // quando a versão aprovada tem `jobId` — `recordMovementInTx` (módulo
+  // filaments) chama estes diretamente no mesmo `tx` mockado.
+  const filament = { findUnique: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn() };
+  const filamentMovement = { create: vi.fn() };
+  const productionOrder = { create: vi.fn() };
+  const prismaMock: Record<string, unknown> = {
+    opportunity,
+    job,
+    quote,
+    quoteVersion,
+    filament,
+    filamentMovement,
+    productionOrder,
+  };
   prismaMock.$transaction = vi.fn(async (cb: (tx: unknown) => unknown) => cb(prismaMock));
   return { prisma: prismaMock };
 });
@@ -28,17 +42,26 @@ const mockedOpportunity = vi.mocked(prisma.opportunity);
 const mockedJob = vi.mocked(prisma.job);
 const mockedQuote = vi.mocked(prisma.quote);
 const mockedQuoteVersion = vi.mocked(prisma.quoteVersion);
+const mockedFilament = vi.mocked(prisma.filament);
+const mockedFilamentMovement = vi.mocked(prisma.filamentMovement);
+const mockedProductionOrder = vi.mocked(prisma.productionOrder);
 
 function resetMocks() {
   mockedOpportunity.findUnique.mockReset();
   mockedJob.findUnique.mockReset();
   mockedQuote.findFirst.mockReset();
+  mockedQuote.findUnique.mockReset();
   mockedQuote.create.mockReset();
   mockedQuote.update.mockReset();
   mockedQuoteVersion.findFirst.mockReset();
   mockedQuoteVersion.findUnique.mockReset();
   mockedQuoteVersion.create.mockReset();
   mockedQuoteVersion.update.mockReset();
+  mockedFilament.findUnique.mockReset();
+  mockedFilament.updateMany.mockReset();
+  mockedFilament.findUniqueOrThrow.mockReset();
+  mockedFilamentMovement.create.mockReset();
+  mockedProductionOrder.create.mockReset();
   vi.mocked(recordAudit).mockReset();
 }
 
@@ -271,6 +294,141 @@ describe("approveVersion", () => {
       expect.objectContaining({ entityType: "quote_version", action: "quote_version.approve", userId: "actor1" }),
       expect.anything(),
     );
+  });
+});
+
+// --- approveVersion + reserva de filamento / ordem de produção (Sprint 6, PROD-1) --
+// Caso crítico da Etapa 2 §05: "Impedir consumo/reserva de filamento sem
+// saldo" combinado com "Alterar orçamento já aprovado" — se qualquer
+// filamento do job não tiver saldo, a aprovação inteira falha: a versão não
+// fica aprovada, nenhum filamento é reservado, nenhuma ordem é criada.
+
+describe("approveVersion — reserva de filamento e ordem de produção quando a versão tem job (Sprint 6)", () => {
+  beforeEach(resetMocks);
+
+  it("reserva cada filamento do job e cria a ProductionOrder quando há saldo suficiente para todos", async () => {
+    mockedQuoteVersion.findUnique.mockResolvedValue({
+      id: "qv1",
+      quoteId: "quote1",
+      status: "SENT",
+      jobId: "job1",
+      deliveryDeadline: new Date("2026-08-01"),
+    } as never);
+    mockedJob.findUnique.mockResolvedValue({
+      id: "job1",
+      jobFilaments: [
+        { filamentId: "fil1", gramsUsed: new Prisma.Decimal(100) },
+        { filamentId: "fil2", gramsUsed: new Prisma.Decimal(50) },
+      ],
+    } as never);
+    mockedQuote.findUnique.mockResolvedValue({ id: "quote1", opportunityId: "op1" } as never);
+    mockedQuoteVersion.update.mockResolvedValue({ id: "qv1", status: "APPROVED" } as never);
+
+    // recordMovementInTx (dentro de approveVersion) lê o filamento, tenta o
+    // updateMany condicional (sucesso = saldo suficiente) e relê o saldo.
+    mockedFilament.findUnique
+      .mockResolvedValueOnce({ id: "fil1", name: "PLA Preto", availableGrams: new Prisma.Decimal(500) } as never)
+      .mockResolvedValueOnce({ id: "fil2", name: "PETG Branco", availableGrams: new Prisma.Decimal(200) } as never);
+    mockedFilament.updateMany.mockResolvedValue({ count: 1 } as never);
+    mockedFilament.findUniqueOrThrow
+      .mockResolvedValueOnce({ id: "fil1", availableGrams: new Prisma.Decimal(400) } as never)
+      .mockResolvedValueOnce({ id: "fil2", availableGrams: new Prisma.Decimal(150) } as never);
+    mockedFilamentMovement.create.mockResolvedValue({ id: "mov1" } as never);
+    mockedProductionOrder.create.mockResolvedValue({ id: "po1" } as never);
+
+    const result = await approveVersion("qv1", "actor1");
+
+    expect(result).toMatchObject({ id: "qv1", status: "APPROVED" });
+
+    // Duas reservas (uma por filamento do job), ambas tipo RESERVA, com o
+    // delta assinado negativo (débito) correspondente às gramas do job.
+    expect(mockedFilament.updateMany).toHaveBeenCalledTimes(2);
+    expect(mockedFilament.updateMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { id: "fil1", availableGrams: { gte: new Prisma.Decimal(100) } },
+        data: expect.objectContaining({ availableGrams: { increment: new Prisma.Decimal(-100) } }),
+      }),
+    );
+    expect(mockedFilament.updateMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { id: "fil2", availableGrams: { gte: new Prisma.Decimal(50) } },
+        data: expect.objectContaining({ availableGrams: { increment: new Prisma.Decimal(-50) } }),
+      }),
+    );
+    expect(mockedFilamentMovement.create).toHaveBeenCalledTimes(2);
+    for (const call of mockedFilamentMovement.create.mock.calls) {
+      const data = (call[0] as { data: Record<string, unknown> }).data;
+      expect(data.type).toBe("RESERVA");
+    }
+
+    // Ordem de produção criada com status AGUARDANDO, vinculada ao job/oportunidade.
+    expect(mockedProductionOrder.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          opportunityId: "op1",
+          jobId: "job1",
+          printStatus: "AGUARDANDO",
+        }),
+      }),
+    );
+  });
+
+  it("caso crítico: se QUALQUER filamento do job não tiver saldo, a versão NÃO fica aprovada e NENHUMA ordem é criada", async () => {
+    mockedQuoteVersion.findUnique.mockResolvedValue({
+      id: "qv2",
+      quoteId: "quote2",
+      status: "SENT",
+      jobId: "job2",
+      deliveryDeadline: null,
+    } as never);
+    mockedJob.findUnique.mockResolvedValue({
+      id: "job2",
+      jobFilaments: [
+        { filamentId: "fil1", gramsUsed: new Prisma.Decimal(100) },
+        // fil2 não tem saldo suficiente — a reserva deste falha.
+        { filamentId: "fil2", gramsUsed: new Prisma.Decimal(250) },
+      ],
+    } as never);
+    mockedQuote.findUnique.mockResolvedValue({ id: "quote2", opportunityId: "op2" } as never);
+    mockedQuoteVersion.update.mockResolvedValue({ id: "qv2", status: "APPROVED" } as never);
+
+    // Primeira reserva (fil1) passa; segunda (fil2) falha por saldo insuficiente.
+    mockedFilament.findUnique
+      .mockResolvedValueOnce({ id: "fil1", name: "PLA Preto", availableGrams: new Prisma.Decimal(500) } as never)
+      .mockResolvedValueOnce({ id: "fil2", name: "PETG Branco", availableGrams: new Prisma.Decimal(200) } as never);
+    mockedFilament.updateMany
+      .mockResolvedValueOnce({ count: 1 } as never)
+      .mockResolvedValueOnce({ count: 0 } as never);
+    mockedFilament.findUniqueOrThrow.mockResolvedValueOnce({
+      id: "fil1",
+      availableGrams: new Prisma.Decimal(400),
+    } as never);
+    mockedFilamentMovement.create.mockResolvedValue({ id: "mov1" } as never);
+
+    await expect(approveVersion("qv2", "actor1")).rejects.toThrow(/saldo insuficiente/i);
+
+    // Nenhuma ordem de produção é criada quando a aprovação falha — nada
+    // fica em estado parcial (mesma transação da versão + reservas).
+    expect(mockedProductionOrder.create).not.toHaveBeenCalled();
+  });
+
+  it("versão manual (sem jobId) aprova normalmente sem reservar filamento nem criar ordem de produção", async () => {
+    mockedQuoteVersion.findUnique.mockResolvedValue({
+      id: "qv3",
+      quoteId: "quote3",
+      status: "SENT",
+      jobId: null,
+    } as never);
+    mockedQuoteVersion.update.mockResolvedValue({ id: "qv3", status: "APPROVED" } as never);
+
+    const result = await approveVersion("qv3", "actor1");
+
+    expect(result).toMatchObject({ id: "qv3", status: "APPROVED" });
+    expect(mockedJob.findUnique).not.toHaveBeenCalled();
+    expect(mockedFilament.updateMany).not.toHaveBeenCalled();
+    expect(mockedProductionOrder.create).not.toHaveBeenCalled();
   });
 });
 

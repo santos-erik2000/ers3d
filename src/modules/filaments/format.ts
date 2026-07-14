@@ -9,11 +9,18 @@ export const MOVEMENT_TYPE_LABEL: Record<FilamentMovementType, string> = {
   PERDA: "Perda",
   DEVOLUCAO: "Devolução",
   CORRECAO: "Correção",
+  // Sprint 6 — geradas pelo módulo de produção (reserva na aprovação do
+  // orçamento / conclusão da produção), nunca lançadas manualmente na tela
+  // de estoque, mas exibidas no mesmo extrato de movimentações.
+  RESERVA: "Reserva",
+  LIBERACAO_RESERVA: "Liberação de reserva",
 };
 
 // Tipos cujo campo de quantidade é sempre um valor positivo digitado pelo
 // usuário (o sinal já é implícito no tipo) — usado pela UI para decidir se
 // mostra "quantidade" simples ou um campo que aceita negativo (Ajuste/Correção).
+// RESERVA/LIBERACAO_RESERVA não aparecem aqui porque não são lançadas pela UI
+// manual de estoque (Sprint 4) — só pelo módulo de produção (Sprint 6).
 export const FIXED_SIGN_MOVEMENT_TYPES: FilamentMovementType[] = ["ENTRADA", "DEVOLUCAO", "PERDA"];
 
 export const FILAMENT_STATUS_LABEL: Record<FilamentStatus, string> = {

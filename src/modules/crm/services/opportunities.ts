@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/modules/audit/services/audit";
 import { NEXT_STAGE, STAGE_LABEL } from "@/modules/crm/format";
 import { getOrCreateOpenCycle } from "@/modules/crm/services/cycles";
+import { hasCompletedProductionOrder } from "@/modules/production/services/production";
 import { Prisma, type Opportunity, type OpportunityPriority, type OpportunityStage } from "@prisma/client";
 
 export class BusinessRuleError extends Error {}
@@ -30,6 +31,11 @@ type TransitionSubject = {
   // obrigar toda chamada de validateTransition (inclusive nos testes puros
   // que não passam por moveStage) a sempre informar.
   hasApprovedQuote?: boolean;
+  // Sprint 6 (módulo production): calculado pelo chamador (moveStage) a
+  // partir de `hasCompletedProductionOrder` — existe alguma ProductionOrder
+  // com status CONCLUIDA vinculada à oportunidade? Só relevante no case
+  // DESENVOLVIMENTO, mesmo padrão de `hasApprovedQuote` acima.
+  hasCompletedProduction?: boolean;
 };
 
 /**
@@ -112,10 +118,20 @@ export function validateTransition(
       break;
 
     case "DESENVOLVIMENTO":
-      // TODO (Sprint 6 — módulo de produção/jobs): pré-condição real é
-      // "status de impressão = concluída; horas e material reais
-      // preenchidos" (production_orders). Módulo não existe ainda — nenhuma
-      // checagem adicional é feita hoje.
+      // Pré-condição (seção 09): "status de impressão = concluída; horas e
+      // material reais preenchidos". Conectada de verdade a partir do
+      // Sprint 6 (módulo production): existe uma ProductionOrder com status
+      // CONCLUIDA vinculada à oportunidade
+      // (src/modules/production/services/production.ts,
+      // `hasCompletedProductionOrder`) — `completeProduction` só chega nesse
+      // status depois de apontar horas reais e reconciliar as gramas reais
+      // de cada filamento do job. Cobre tanto a ordem criada automaticamente
+      // (versão de orçamento com job) quanto a manual (versão sem job).
+      if (!subject.hasCompletedProduction) {
+        throw new BusinessRuleError(
+          "É necessário que a ordem de produção desta oportunidade esteja com status Concluída antes de mover para Teste de Qualidade.",
+        );
+      }
       break;
 
     case "QUALIDADE":
@@ -249,7 +265,20 @@ export async function moveStage(
     hasApprovedQuote = Boolean(approvedVersion);
   }
 
-  validateTransition(opportunity.stage, toStage, { ...opportunity, hasApprovedQuote }, note);
+  // Sprint 6: mesmo padrão acima — só consulta ProductionOrder quando a
+  // oportunidade está saindo de Desenvolvimento (case DESENVOLVIMENTO de
+  // validateTransition).
+  let hasCompletedProduction: boolean | undefined;
+  if (opportunity.stage === "DESENVOLVIMENTO") {
+    hasCompletedProduction = await hasCompletedProductionOrder(opportunityId);
+  }
+
+  validateTransition(
+    opportunity.stage,
+    toStage,
+    { ...opportunity, hasApprovedQuote, hasCompletedProduction },
+    note,
+  );
 
   const trimmedNote = note?.trim() || null;
 

@@ -27,6 +27,10 @@ async function main() {
       slug: PERMISSIONS.QUOTES_MANAGE,
       description: "Criar/versionar orçamento, aprovar/rejeitar versão e fechar ciclo mensal do Kanban",
     },
+    {
+      slug: PERMISSIONS.PRODUCTION_MANAGE,
+      description: "Criar/editar ordens de produção e concluir produção (apontamento de horas/gramas reais)",
+    },
   ];
 
   for (const p of permissionSeeds) {
@@ -78,6 +82,7 @@ async function main() {
     PERMISSIONS.FILAMENTS_MANAGE,
     PERMISSIONS.JOBS_MANAGE,
     PERMISSIONS.QUOTES_MANAGE,
+    PERMISSIONS.PRODUCTION_MANAGE,
   ];
   await prisma.rolePermission.deleteMany({ where: { roleId: admin.id } });
   await prisma.rolePermission.createMany({
@@ -95,6 +100,14 @@ async function main() {
       .map((p) => ({ roleId: contador.id, permissionId: p.id })),
     skipDuplicates: true,
   });
+
+  // Impressoras (Sprint 6 — decisão já confirmada na Etapa 1 §03: ERS 3D
+  // opera 3 impressoras hoje, tabela leve sem agenda/calendário). Upsert por
+  // nome — idempotente, não duplica em reseeds.
+  const printerNames = ["Impressora 1", "Impressora 2", "Impressora 3"];
+  for (const name of printerNames) {
+    await prisma.printer.upsert({ where: { name }, update: {}, create: { name } });
+  }
 
   // Usuário ROOT inicial — obrigatório para o primeiro login existir.
   const rootEmail = (process.env.SEED_ROOT_EMAIL ?? "admin@ers3d.com.br").toLowerCase();
