@@ -5,6 +5,8 @@ import { PERMISSIONS } from "@/modules/auth/services/permissions";
 import { listUsersWithRoles } from "@/modules/auth/services/users";
 import { getDeadlineStatus, formatCurrency, PRIORITY_LABEL, STAGE_LABEL } from "@/modules/crm/format";
 import { getOpportunityById } from "@/modules/crm/services/opportunities";
+import { getDeliveryByOpportunity } from "@/modules/deliveries/services/deliveries";
+import { listInventoryItemsByOpportunity } from "@/modules/inventory/services/inventory";
 import { listJobs } from "@/modules/jobs/services/jobs";
 import { getProductionOrderByOpportunity, listPrinters } from "@/modules/production/services/production";
 import { getQualityHistoryForOpportunity } from "@/modules/quality/services/quality";
@@ -12,6 +14,8 @@ import { getQuoteWithVersions } from "@/modules/quotes/services/quotes";
 import { JobOption, QuotePanel, QuoteVersionView } from "./quote-panel";
 import { ProductionOrderView, ProductionPanel, SelectOption } from "./production-panel";
 import { QualityCheckView, QualityPanel } from "./quality-panel";
+import { InventoryItemView, InventoryPanel } from "./inventory-panel";
+import { DeliveryView, DeliveryPanel } from "./delivery-panel";
 
 function formatMonth(date: Date): string {
   return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(date);
@@ -32,14 +36,17 @@ export default async function OpportunityDetailPage({
   const opportunity = await getOpportunityById(id);
   if (!opportunity) notFound();
 
-  const [quote, jobs, productionOrder, printers, users, qualityHistory] = await Promise.all([
-    getQuoteWithVersions(id),
-    listJobs(),
-    getProductionOrderByOpportunity(id),
-    listPrinters(),
-    listUsersWithRoles(),
-    getQualityHistoryForOpportunity(id),
-  ]);
+  const [quote, jobs, productionOrder, printers, users, qualityHistory, inventoryItems, delivery] =
+    await Promise.all([
+      getQuoteWithVersions(id),
+      listJobs(),
+      getProductionOrderByOpportunity(id),
+      listPrinters(),
+      listUsersWithRoles(),
+      getQualityHistoryForOpportunity(id),
+      listInventoryItemsByOpportunity(id),
+      getDeliveryByOpportunity(id),
+    ]);
 
   const versions: QuoteVersionView[] = (quote?.versions ?? []).map((v) => ({
     id: v.id,
@@ -117,6 +124,45 @@ export default async function OpportunityDetailPage({
     })),
   }));
 
+  const inventoryItemsView: InventoryItemView[] = inventoryItems.map((item) => ({
+    id: item.id,
+    quantityProduced: item.quantityProduced,
+    quantityAvailable: item.quantityAvailable,
+    quantityReserved: item.quantityReserved,
+    quantitySold: item.quantitySold,
+    quantityDiscarded: item.quantityDiscarded,
+    unitCost: item.unitCost ? item.unitCost.toString() : null,
+    status: item.status,
+    createdAt: item.createdAt.toISOString(),
+  }));
+
+  const deliveryView: DeliveryView | null = delivery
+    ? {
+        id: delivery.id,
+        method: delivery.method,
+        status: delivery.status,
+        address: delivery.address,
+        recipientName: delivery.recipientName,
+        trackingCode: delivery.trackingCode,
+        expectedAt: delivery.expectedAt ? delivery.expectedAt.toISOString() : null,
+        shippedAt: delivery.shippedAt ? delivery.shippedAt.toISOString() : null,
+        deliveredAt: delivery.deliveredAt ? delivery.deliveredAt.toISOString() : null,
+        proofUrl: delivery.proofUrl,
+        notes: delivery.notes,
+        checklistItems: delivery.checklistItems.map((item) => ({
+          id: item.id,
+          label: item.label,
+          checked: item.checked,
+          notes: item.notes,
+        })),
+      }
+    : null;
+
+  // Sprint 8: o registro de entrega só faz sentido quando a oportunidade já
+  // está na etapa Entrega (mesma pré-condição checada de verdade em
+  // src/modules/deliveries/services/deliveries.ts, `createDelivery`).
+  const canCreateDelivery = opportunity.stage === "ENTREGA";
+
   return (
     <div className="max-w-4xl">
       <Link href="/crm" className="text-sm text-accent hover:underline">
@@ -169,6 +215,10 @@ export default async function OpportunityDetailPage({
           productionOrderId={productionOrder?.id ?? null}
           history={qualityHistoryView}
         />
+
+        <InventoryPanel opportunityId={id} items={inventoryItemsView} />
+
+        <DeliveryPanel opportunityId={id} canCreate={canCreateDelivery} delivery={deliveryView} />
       </div>
     </div>
   );

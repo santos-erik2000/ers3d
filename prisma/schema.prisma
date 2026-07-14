@@ -48,6 +48,12 @@ model User {
   // Checklists de qualidade registrados por este usuário (Sprint 7 —
   // quality_checks.checked_by_id).
   qualityChecksPerformed      QualityCheck[]            @relation("QualityCheckChecker")
+  // Movimentações de estoque de peças feitas por este usuário (Sprint 8 —
+  // inventory_movements.user_id).
+  inventoryMovements          InventoryMovement[]       @relation("InventoryMovementActor")
+  // Entregas registradas/criadas por este usuário (Sprint 8 —
+  // deliveries.created_by_id).
+  deliveriesCreated           Delivery[]                @relation("DeliveryCreatedBy")
 
   @@map("users")
 }
@@ -329,6 +335,13 @@ model Opportunity {
   // histórico completo (inclusive reprovações antigas) fica sempre
   // consultável (QUAL-3), nunca apagado.
   qualityChecks    QualityCheck[]
+  // Itens de estoque de peças gerados a partir de aprovações de qualidade
+  // desta oportunidade (Sprint 8 — INV-1) — normalmente um por checklist
+  // aprovado/aprovado com ressalva.
+  inventoryItems   InventoryItem[]
+  // Entregas registradas para esta oportunidade (Sprint 8 — DEL-1), a mais
+  // recente com status ENTREGUE é a pré-condição real de Entrega → Concluído.
+  deliveries       Delivery[]
 
   @@index([customerId])
   @@index([ownerId])
@@ -563,6 +576,9 @@ model Job {
   // só, criada automaticamente quando a QuoteVersion correspondente é
   // aprovada).
   productionOrders ProductionOrder[]
+  // Itens de estoque de peças gerados a partir de aprovações de qualidade de
+  // ordens de produção vinculadas a este job (Sprint 8 — INV-1).
+  inventoryItems   InventoryItem[]
 
   @@index([projectId])
   @@map("jobs")
@@ -872,6 +888,9 @@ model QualityCheck {
   checkedBy   User?   @relation("QualityCheckChecker", fields: [checkedById], references: [id], onDelete: SetNull)
 
   items QualityCheckItem[]
+  // Itens de estoque de peças gerados a partir desta aprovação (Sprint 8 —
+  // INV-1) — vazio quando result = REPROVADO (reprovação nunca gera peça).
+  inventoryItems InventoryItem[]
 
   @@index([opportunityId])
   @@index([productionOrderId])
@@ -895,4 +914,230 @@ model QualityCheckItem {
 
   @@index([qualityCheckId])
   @@map("quality_check_items")
+}
+
+// ---------------------------------------------------------------------------
+// Estoque de peças & Entrega (Etapa 5, Sprint 8 — épico E7, histórias
+// INV-1/INV-2/DEL-1/DEL-2). Conecta uma aprovação de qualidade (`QualityCheck`,
+// Sprint 7) a unidades físicas em estoque (`InventoryItem`), com o mesmo
+// desenho de escrita condicional atômica de `FilamentMovement`
+// (src/modules/filaments/services/filaments.ts, `recordMovementInTx`) para
+// nunca deixar `quantityAvailable` ficar negativo (INV-2, caso crítico
+// explícito "Venda ou descarte sem estoque" — planejamento/02 §05) — e
+// `Delivery`, o registro de entrega que a partir deste sprint passa a ser a
+// pré-condição real de Entrega → Concluído junto com qualidade/produção
+// (planejamento/01 §09; ver `validateTransition`, case "ENTREGA", em
+// src/modules/crm/services/opportunities.ts).
+//
+// Geração automática do InventoryItem (INV-1): ao registrar um QualityCheck
+// com result = APROVADO ou APROVADO_COM_RESSALVA (REPROVADO nunca gera peça —
+// isso já é tratado pelo retrabalho do Sprint 7), a MESMA transação de
+// `submitQualityCheck` (src/modules/quality/services/quality.ts) cria o
+// InventoryItem correspondente, reaproveitando
+// `createInventoryItemFromProductionInTx`
+// (src/modules/inventory/services/inventory.ts). Diferente do caso
+// quotes/production (Sprint 6) e quality/opportunities (Sprint 7), aqui NÃO
+// há ciclo entre módulos: `inventory` não importa nada de `quality`/`crm` (só
+// `audit`, igual `filaments`) — por isso `quality.ts` pode chamar a função
+// direto, sem duplicar a lógica de criação dentro de si mesmo (ver comentário
+// completo em `submitQualityCheck`).
+//
+// `quantityProduced` vem de `Job.quantityProduced` quando a ordem de produção
+// tem job vinculado; quando não tem (orçamento manual, sem Job — mesmo caso já
+// documentado em `ProductionOrder`/`approveVersion`), usa 1 como fallback
+// documentado (TODO: não há como inferir a quantidade real produzida de um
+// orçamento manual sem um campo próprio — não inventamos esse dado).
+// `unitCost` é `Job.directCost / Job.quantityProduced` quando há job (custo de
+// produção real, não o preço de venda) — nulo no fallback manual, pelo mesmo
+// motivo.
+// ---------------------------------------------------------------------------
+
+enum InventoryItemStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// Tipos de movimentação de estoque de peças. PRODUCAO é gerada só
+// automaticamente (criação do item, nunca lançada manualmente pela tela —
+// mesmo padrão de RESERVA/LIBERACAO_RESERVA de filamento serem geradas só
+// pelo módulo de produção). RESERVA/LIBERACAO_RESERVA/VENDA/DESCARTE/AJUSTE
+// são operações manuais da UI do estoque de peças.
+enum InventoryMovementType {
+  PRODUCAO
+  RESERVA
+  LIBERACAO_RESERVA
+  VENDA
+  DESCARTE
+  AJUSTE
+}
+
+// Estoque de peças acabadas (INV-1/INV-2). `quantityAvailable` é o saldo que
+// nunca pode ficar negativo — toda alteração passa por
+// src/modules/inventory/services/inventory.ts
+// (`recordInventoryMovementInTx`), nunca escrita diretamente fora dali, mesma
+// disciplina de `Filament.availableGrams`. `version` é a coluna de lock
+// otimista prevista na Etapa 1 §11 (mesmo padrão de `Filament.version`) — a
+// segurança real sob concorrência vem da escrita condicional atômica
+// (`updateMany` com filtro de saldo suficiente), não desta coluna sozinha.
+model InventoryItem {
+  id String @id @default(uuid())
+
+  quantityProduced  Int
+  quantityAvailable Int
+  quantityReserved  Int @default(0)
+  quantitySold      Int @default(0)
+  quantityDiscarded Int @default(0)
+
+  unitCost Decimal? @db.Decimal(12, 2)
+  location String?
+  status   InventoryItemStatus @default(ACTIVE)
+  version  Int                 @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+
+  // Nulo quando a ordem de produção de origem não tinha job vinculado
+  // (orçamento manual — ver cabeçalho da seção).
+  jobId String?
+  job   Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  // Checklist de qualidade que originou esta peça (rastreabilidade INV-1) —
+  // sempre um QualityCheck com result APROVADO/APROVADO_COM_RESSALVA.
+  qualityCheckId String?
+  qualityCheck   QualityCheck? @relation(fields: [qualityCheckId], references: [id], onDelete: SetNull)
+
+  movements InventoryMovement[]
+
+  @@index([opportunityId])
+  @@index([jobId])
+  @@index([qualityCheckId])
+  @@index([status])
+  @@map("inventory_items")
+}
+
+// Trilha de movimentação do estoque de peças — nunca editada/apagada.
+// `quantity` é sempre a magnitude positiva da operação. Diferente de
+// `FilamentMovement` (que só precisa rastrear um saldo), aqui uma peça tem
+// QUATRO colunas relevantes (disponível/reservado/vendido/descartado) — os
+// pares antes/depois de cada uma são gravados a partir do estado real
+// pós-escrita dentro da mesma transação (nunca de uma leitura anterior),
+// mesma garantia de `FilamentMovement.balanceBefore/After`.
+model InventoryMovement {
+  id   String                @id @default(uuid())
+  type InventoryMovementType
+
+  quantity Int
+
+  availableBefore  Int
+  availableAfter   Int
+  reservedBefore   Int
+  reservedAfter    Int
+  soldBefore       Int
+  soldAfter        Int
+  discardedBefore  Int
+  discardedAfter   Int
+
+  reason    String?
+  createdAt DateTime @default(now())
+
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  userId String?
+  user   User?   @relation("InventoryMovementActor", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([inventoryItemId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("inventory_movements")
+}
+
+// Método de envio/entrega (DEL-1). Sem integração automática de frete
+// (decisão já confirmada em planejamento/01-visao-arquitetura.html §07,
+// "Estoque de peças & entrega... sem integração automática de frete") — tudo
+// registrado manualmente.
+enum DeliveryMethod {
+  RETIRADA
+  ENTREGA_PROPRIA
+  CORREIOS
+  TRANSPORTADORA
+  MOTOBOY
+}
+
+enum DeliveryStatus {
+  PENDENTE
+  ENVIADO
+  ENTREGUE
+}
+
+// Registro de entrega (DEL-1/DEL-2). `status = ENTREGUE` na entrega mais
+// recente da oportunidade é a pré-condição real de Entrega → Concluído a
+// partir deste sprint (junto com qualidade aprovada e produção concluída —
+// ver `validateTransition`, case "ENTREGA",
+// src/modules/crm/services/opportunities.ts). Uma oportunidade pode ter mais
+// de uma Delivery ao longo do tempo (reenvio após extravio, por exemplo) — o
+// schema não impõe unicidade, mesmo padrão de `ProductionOrder`/
+// `QualityCheck` (a checagem sempre olha a MAIS RECENTE, nunca "existe
+// alguma ENTREGUE alguma vez").
+//
+// `proofUrl` é só um campo de texto/URL, mesma decisão do Sprint 7 para
+// `QualityCheckItem.evidencePhotoUrl` — upload real de arquivo é módulo
+// `files`, fora de escopo.
+model Delivery {
+  id String @id @default(uuid())
+
+  method DeliveryMethod
+  status DeliveryStatus @default(PENDENTE)
+
+  address       String?
+  recipientName String?
+  trackingCode  String?
+
+  expectedAt  DateTime?
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+
+  proofUrl String?
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+
+  createdById String?
+  createdBy   User?   @relation("DeliveryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  checklistItems DeliveryChecklistItem[]
+
+  @@index([opportunityId])
+  @@index([status])
+  @@map("deliveries")
+}
+
+// Checklist de embalagem (DEL-1) — modelado como tabela própria (mesmo
+// desenho de `QualityCheckItem`, reaproveitado por decisão explícita do
+// escopo do sprint) em vez de um campo JSON solto: permite consultar/editar
+// item a item (marcar/desmarcar, anotar) sem precisar reserializar o
+// documento inteiro a cada alteração, e mantém o mesmo padrão de consulta já
+// usado pelo resto do código para "uma lista de itens marcáveis". Itens fixos
+// (conferência da peça, quantidade, acabamento, proteção, identificação,
+// peso, dimensões, foto da embalagem) — ver
+// src/modules/deliveries/format.ts, DELIVERY_CHECKLIST_ITEMS — criados junto
+// da Delivery, todos desmarcados até o usuário confirmar cada um.
+model DeliveryChecklistItem {
+  id      String  @id @default(uuid())
+  label   String
+  checked Boolean @default(false)
+  notes   String?
+
+  deliveryId String
+  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryId])
+  @@map("delivery_checklist_items")
 }

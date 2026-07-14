@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/modules/audit/services/audit";
 import { NEXT_STAGE, STAGE_LABEL } from "@/modules/crm/format";
 import { getOrCreateOpenCycle } from "@/modules/crm/services/cycles";
+import { hasDeliveredDelivery } from "@/modules/deliveries/services/deliveries";
 import { hasCompletedProductionOrder } from "@/modules/production/services/production";
 import { hasApprovedQualityCheck } from "@/modules/quality/services/quality";
 import { Prisma, type Opportunity, type OpportunityPriority, type OpportunityStage } from "@prisma/client";
@@ -39,10 +40,16 @@ type TransitionSubject = {
   hasCompletedProduction?: boolean;
   // Sprint 7 (módulo quality): calculado pelo chamador (moveStage) a partir
   // de `hasApprovedQualityCheck` — o QualityCheck mais recente da
-  // oportunidade tem result = APROVADO ou APROVADO_COM_RESSALVA? Só relevante
-  // no case QUALIDADE, mesmo padrão de `hasApprovedQuote`/
-  // `hasCompletedProduction` acima.
+  // oportunidade tem result = APROVADO ou APROVADO_COM_RESSALVA? Relevante no
+  // case QUALIDADE (Qualidade → Entrega) e, a partir do Sprint 8, também
+  // recalculado no case ENTREGA (Entrega → Concluído exige qualidade
+  // aprovada de novo — ver comentário nesse case), mesmo padrão de
+  // `hasApprovedQuote`/`hasCompletedProduction` acima.
   hasQualityApproval?: boolean;
+  // Sprint 8 (módulo deliveries): calculado pelo chamador (moveStage) a
+  // partir de `hasDeliveredDelivery` — existe uma Delivery mais recente com
+  // status ENTREGUE vinculada à oportunidade? Só relevante no case ENTREGA.
+  hasDelivered?: boolean;
 };
 
 /**
@@ -159,10 +166,52 @@ export function validateTransition(
       break;
 
     case "ENTREGA":
-      // TODO (Sprints 7/8/9 — qualidade, entrega, financeiro): pré-condição
-      // real é "qualidade aprovada + produção finalizada + entrega
-      // registrada + pendências financeiras justificadas". Nenhum desses
-      // módulos existe ainda — nenhuma checagem adicional é feita hoje.
+      // Pré-condição (seção 09): "qualidade aprovada + produção finalizada +
+      // entrega registrada + pendências financeiras justificadas". Esta é a
+      // ÚNICA transição real que sai da etapa Entrega neste fluxo (fromStage
+      // = ENTREGA, toStage = CONCLUIDO — ver NEXT_STAGE em
+      // src/modules/crm/format.ts), então é aqui — sob o desenho
+      // switch(fromStage) já usado em todo este arquivo — que a checagem de
+      // verdade acontece, não no `case "CONCLUIDO"` abaixo (que existe só por
+      // completude, ver seu comentário).
+      //
+      // A partir do Sprint 8 (módulos inventory/deliveries), as três partes
+      // checáveis hoje são conectadas de verdade: `hasCompletedProduction` e
+      // `hasQualityApproval` são RECALCULADAS aqui (não reaproveitadas dos
+      // cases DESENVOLVIMENTO/QUALIDADE acima, que só valem para a transição
+      // imediatamente seguinte à etapa em que cada uma vive) e
+      // `hasDelivered` é novo (Sprint 8, `hasDeliveredDelivery`, módulo
+      // `deliveries`). "Pendências financeiras justificadas" continua como
+      // TODO (Sprint 9 — módulo `finance` ainda não existe): nenhuma
+      // checagem falsa é inventada para essa parte.
+      if (!subject.hasCompletedProduction) {
+        throw new BusinessRuleError(
+          "É necessário que a produção desta oportunidade esteja concluída antes de mover para Concluído.",
+        );
+      }
+      if (!subject.hasQualityApproval) {
+        throw new BusinessRuleError(
+          "É necessário que o checklist de qualidade mais recente esteja aprovado ou aprovado com ressalva antes de mover para Concluído.",
+        );
+      }
+      if (!subject.hasDelivered) {
+        throw new BusinessRuleError(
+          "É necessário que a entrega desta oportunidade esteja registrada com status Entregue antes de mover para Concluído.",
+        );
+      }
+      // TODO (Sprint 9 — módulo finance): checar aqui "pendências financeiras
+      // justificadas" assim que accounts_receivable existir.
+      break;
+
+    case "CONCLUIDO":
+      // Adicionado por completude do switch(fromStage) — nunca executa na
+      // prática: CONCLUIDO é o estágio terminal deste fluxo
+      // (NEXT_STAGE["CONCLUIDO"] = null, src/modules/crm/format.ts), então
+      // nenhuma transição válida parte daqui (qualquer tentativa já é
+      // rejeitada mais acima, pelo guard `!isForwardStep && !isQualityRejection`,
+      // antes mesmo de chegar neste switch). A pré-condição real de "Entrega
+      // → Concluído" vive no `case "ENTREGA"` acima, que é o que de fato
+      // governa essa transição.
       break;
 
     default:
@@ -284,27 +333,36 @@ export async function moveStage(
   }
 
   // Sprint 6: mesmo padrão acima — só consulta ProductionOrder quando a
-  // oportunidade está saindo de Desenvolvimento (case DESENVOLVIMENTO de
-  // validateTransition).
+  // oportunidade está saindo de Desenvolvimento (case DESENVOLVIMENTO) OU
+  // saindo de Entrega (case ENTREGA, Sprint 8 — a checagem de produção
+  // concluída é reexigida na compound de Entrega → Concluído, não só na
+  // transição imediatamente anterior).
   let hasCompletedProduction: boolean | undefined;
-  if (opportunity.stage === "DESENVOLVIMENTO") {
+  if (opportunity.stage === "DESENVOLVIMENTO" || opportunity.stage === "ENTREGA") {
     hasCompletedProduction = await hasCompletedProductionOrder(opportunityId);
   }
 
   // Sprint 7: mesmo padrão acima — só consulta QualityCheck quando a
   // oportunidade está saindo de Qualidade (case QUALIDADE de
-  // validateTransition). A transição inversa (reprovação, QUALIDADE →
-  // DESENVOLVIMENTO) não usa este campo — ela é decidida pelo motivo
-  // obrigatório do `isQualityRejection`, calculado antes do switch.
+  // validateTransition, exceto a reprovação — decidida pelo motivo
+  // obrigatório do `isQualityRejection`, não por este campo) OU saindo de
+  // Entrega (case ENTREGA, Sprint 8 — mesma reexigência do parágrafo acima).
   let hasQualityApproval: boolean | undefined;
-  if (opportunity.stage === "QUALIDADE" && toStage !== "DESENVOLVIMENTO") {
+  if ((opportunity.stage === "QUALIDADE" && toStage !== "DESENVOLVIMENTO") || opportunity.stage === "ENTREGA") {
     hasQualityApproval = await hasApprovedQualityCheck(opportunityId);
+  }
+
+  // Sprint 8: só consulta Delivery quando a oportunidade está saindo de
+  // Entrega (case ENTREGA — a única transição real que usa este campo).
+  let hasDelivered: boolean | undefined;
+  if (opportunity.stage === "ENTREGA") {
+    hasDelivered = await hasDeliveredDelivery(opportunityId);
   }
 
   validateTransition(
     opportunity.stage,
     toStage,
-    { ...opportunity, hasApprovedQuote, hasCompletedProduction, hasQualityApproval },
+    { ...opportunity, hasApprovedQuote, hasCompletedProduction, hasQualityApproval, hasDelivered },
     note,
   );
 

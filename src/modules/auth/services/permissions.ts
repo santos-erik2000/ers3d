@@ -41,6 +41,15 @@ export const PERMISSIONS = {
   // épico E6. A reprovação (via este mesmo checklist) é o que move a
   // oportunidade de volta para Desenvolvimento e abre o retrabalho.
   QUALITY_MANAGE: "quality.manage",
+  // Operações manuais de estoque de peças (reservar, liberar reserva,
+  // vender, descartar, ajustar) — Sprint 8, épico E7. A geração automática do
+  // InventoryItem na aprovação de qualidade não passa por esta permissão (é
+  // feita dentro da transação de `quality.manage`, ver
+  // src/modules/quality/services/quality.ts).
+  INVENTORY_MANAGE: "inventory.manage",
+  // Registrar/editar entrega (método, rastreio, checklist de embalagem) e
+  // marcar como enviada/entregue — Sprint 8, épico E7.
+  DELIVERIES_MANAGE: "deliveries.manage",
 } as const;
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

@@ -1,19 +1,34 @@
-// Qualidade (Etapa 5, Sprint 7 — épico E6, histórias QUAL-1..QUAL-3). Ver o
-// cabeçalho de `QualityCheck`/`QualityCheckItem` em prisma/schema.prisma para
-// o desenho completo e a explicação de por que a escrita de reprovação
-// (mover a oportunidade de volta para Desenvolvimento + abrir uma nova
-// ProductionOrder de retrabalho) é feita DIRETAMENTE aqui, na mesma
-// transação, em vez de chamar `moveStage`
-// (src/modules/crm/services/opportunities.ts) ou
+// Qualidade (Etapa 5, Sprint 7 — épico E6, histórias QUAL-1..QUAL-3; Sprint 8
+// — épico E7, história INV-1). Ver o cabeçalho de
+// `QualityCheck`/`QualityCheckItem` em prisma/schema.prisma para o desenho
+// completo e a explicação de por que a escrita de reprovação (mover a
+// oportunidade de volta para Desenvolvimento + abrir uma nova ProductionOrder
+// de retrabalho) é feita DIRETAMENTE aqui, na mesma transação, em vez de
+// chamar `moveStage` (src/modules/crm/services/opportunities.ts) ou
 // `createManualProductionOrder`/`completeProduction`
 // (src/modules/production/services/production.ts): `opportunities.ts` já
 // depende deste módulo (`hasApprovedQualityCheck`, pré-condição real de
 // Qualidade → Entrega) — importar de volta fecharia um ciclo entre módulos de
 // serviço, o mesmo problema já resolvido entre `quotes` e `production` (ver
 // comentário em `approveVersion`, src/modules/quotes/services/quotes.ts).
+//
+// Sprint 8 (INV-1): quando o resultado é APROVADO ou APROVADO_COM_RESSALVA
+// (nunca REPROVADO — isso já é tratado pelo retrabalho acima), a MESMA
+// transação também gera o `InventoryItem` correspondente, chamando
+// `createInventoryItemFromProductionInTx`
+// (src/modules/inventory/services/inventory.ts) diretamente — mas aqui, ao
+// contrário do caso da `ProductionOrder` de retrabalho acima, NÃO há ciclo
+// entre módulos: `inventory` não importa nada de `quality`/`crm`/`production`
+// (só `audit`, igual `filaments`), então não há dependência de volta que
+// impeça reaproveitar a função normalmente — é o mesmo padrão de
+// `production.ts` chamar `recordMovementInTx` de `filaments.ts` (Sprint 6).
+// Duplicar a lógica de criação do item aqui dentro, como foi feito para a
+// ProductionOrder de retrabalho, seria desnecessário e pior (duas cópias da
+// mesma escrita condicional de estoque).
 
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/modules/audit/services/audit";
+import { createInventoryItemFromProductionInTx } from "@/modules/inventory/services/inventory";
 import type { QualityCheck, QualityCheckResult } from "@prisma/client";
 
 export class BusinessRuleError extends Error {}
@@ -71,9 +86,16 @@ function normalizeItems(items: QualityCheckItemInput[]): QualityCheckItemInput[]
  * depois, mesmo que um retrabalho seguinte seja aprovado — é sempre possível
  * consultar reprovações antigas via `getQualityHistoryForOpportunity` (QUAL-3).
  *
- * Se o resultado for APROVADO ou APROVADO_COM_RESSALVA, só o registro em si é
- * gravado — nada mais é tocado (a pré-condição de Qualidade → Entrega passa a
- * enxergar isso via `hasApprovedQualityCheck`).
+ * Se o resultado for APROVADO ou APROVADO_COM_RESSALVA (Sprint 8 — INV-1), a
+ * MESMA transação também gera o `InventoryItem` correspondente
+ * (`createInventoryItemFromProductionInTx`, módulo `inventory`) — a
+ * quantidade vem de `Job.quantityProduced` quando a ordem tem job vinculado;
+ * quando não tem (orçamento manual), usa 1 como fallback documentado (TODO:
+ * não há campo confiável de "quantidade produzida" para um orçamento manual
+ * sem job — não inventamos esse dado). O estágio da oportunidade NÃO muda
+ * nesse caso (só a etapa QUALIDADE → ENTREGA continua acontecendo pelo
+ * caminho normal do Kanban, via `moveStage`) — a pré-condição de Qualidade →
+ * Entrega continua enxergando isso via `hasApprovedQualityCheck`.
  */
 export async function submitQualityCheck(
   input: SubmitQualityCheckInput,
@@ -87,7 +109,10 @@ export async function submitQualityCheck(
     );
   }
 
-  const productionOrder = await prisma.productionOrder.findUnique({ where: { id: input.productionOrderId } });
+  const productionOrder = await prisma.productionOrder.findUnique({
+    where: { id: input.productionOrderId },
+    include: { job: true },
+  });
   if (!productionOrder) throw new BusinessRuleError("Ordem de produção não encontrada.");
   if (productionOrder.opportunityId !== input.opportunityId) {
     throw new BusinessRuleError("Esta ordem de produção não pertence a esta oportunidade.");
@@ -192,6 +217,28 @@ export async function submitQualityCheck(
           userId: actorUserId,
         },
         tx,
+      );
+    }
+
+    // Sprint 8 (INV-1): aprovado ou aprovado com ressalva gera a peça em
+    // estoque — reprovado nunca chega aqui (fica no branch acima, que sempre
+    // termina em retrabalho, nunca em estoque). Ver comentário completo no
+    // cabeçalho deste arquivo e no doc-comment desta função.
+    if (input.result === "APROVADO" || input.result === "APROVADO_COM_RESSALVA") {
+      const job = productionOrder.job;
+      const quantityProduced = job?.quantityProduced ?? 1;
+      const unitCost = job ? job.directCost.dividedBy(job.quantityProduced) : null;
+
+      await createInventoryItemFromProductionInTx(
+        tx,
+        {
+          opportunityId: input.opportunityId,
+          jobId: productionOrder.jobId,
+          qualityCheckId: qualityCheck.id,
+          quantityProduced,
+          unitCost,
+        },
+        actorUserId,
       );
     }
 

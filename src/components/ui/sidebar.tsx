@@ -14,7 +14,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/crm", label: "CRM (Kanban)", enabled: true },
   { href: "/clientes", label: "Clientes", enabled: true },
   { href: "/calculadora", label: "Calculadora 3D", enabled: true },
-  { href: "/estoque", label: "Estoque", enabled: true },
+  { href: "/estoque", label: "Estoque de filamento", enabled: true },
+  { href: "/estoque-pecas", label: "Estoque de peças", enabled: true },
   { href: "/financeiro", label: "Financeiro", enabled: false },
   { href: "/relatorios", label: "Relatórios", enabled: false },
   { href: "/usuarios", label: "Usuários & Permissões", enabled: true },
@@ -33,7 +34,11 @@ export function Sidebar() {
 
       <nav className="mt-8 flex flex-col gap-1">
         {NAV_ITEMS.map((item) => {
-          const isActive = pathname.startsWith(item.href);
+          // Comparação exata ou por segmento de rota (nunca prefixo solto) —
+          // evita que "/estoque" fique marcado como ativo quando a rota atual
+          // é "/estoque-pecas" (Sprint 8, mesmo problema apareceria com
+          // qualquer outro par de rotas prefixadas uma pela outra).
+          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
           if (!item.enabled) {
             return (
               <span

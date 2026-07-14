@@ -35,6 +35,14 @@ async function main() {
       slug: PERMISSIONS.QUALITY_MANAGE,
       description: "Registrar checklist de qualidade (aprovar/reprovar/aprovar com ressalva)",
     },
+    {
+      slug: PERMISSIONS.INVENTORY_MANAGE,
+      description: "Reservar, liberar reserva, vender, descartar e ajustar estoque de peças",
+    },
+    {
+      slug: PERMISSIONS.DELIVERIES_MANAGE,
+      description: "Registrar entrega, checklist de embalagem e marcar como enviada/entregue",
+    },
   ];
 
   for (const p of permissionSeeds) {
@@ -88,6 +96,8 @@ async function main() {
     PERMISSIONS.QUOTES_MANAGE,
     PERMISSIONS.PRODUCTION_MANAGE,
     PERMISSIONS.QUALITY_MANAGE,
+    PERMISSIONS.INVENTORY_MANAGE,
+    PERMISSIONS.DELIVERIES_MANAGE,
   ];
   await prisma.rolePermission.deleteMany({ where: { roleId: admin.id } });
   await prisma.rolePermission.createMany({

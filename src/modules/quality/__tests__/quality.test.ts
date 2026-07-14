@@ -5,17 +5,27 @@ vi.mock("@/lib/prisma", () => {
   const productionOrder = { findUnique: vi.fn(), create: vi.fn() };
   const opportunityStageHistory = { create: vi.fn() };
   const qualityCheck = { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() };
+  // Sprint 8 (INV-1): submitQualityCheck, quando aprovado/aprovado com
+  // ressalva, chama createInventoryItemFromProductionInTx (módulo
+  // `inventory`, real/não mockado) dentro da MESMA transação — que por sua
+  // vez escreve em inventoryItem/inventoryMovement do mesmo `tx` mockado
+  // aqui (prismaMock, reaproveitado como `tx` por `$transaction` abaixo).
+  const inventoryItem = { create: vi.fn() };
+  const inventoryMovement = { create: vi.fn() };
   const prismaMock: Record<string, unknown> = {
     opportunity,
     productionOrder,
     opportunityStageHistory,
     qualityCheck,
+    inventoryItem,
+    inventoryMovement,
   };
   prismaMock.$transaction = vi.fn(async (cb: (tx: unknown) => unknown) => cb(prismaMock));
   return { prisma: prismaMock };
 });
 vi.mock("@/modules/audit/services/audit", () => ({ recordAudit: vi.fn() }));
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/modules/audit/services/audit";
 import {
@@ -30,6 +40,8 @@ const mockedOpportunity = vi.mocked(prisma.opportunity);
 const mockedProductionOrder = vi.mocked(prisma.productionOrder);
 const mockedHistory = vi.mocked(prisma.opportunityStageHistory);
 const mockedQualityCheck = vi.mocked(prisma.qualityCheck);
+const mockedInventoryItem = vi.mocked(prisma.inventoryItem);
+const mockedInventoryMovement = vi.mocked(prisma.inventoryMovement);
 
 function resetMocks() {
   mockedOpportunity.findUnique.mockReset();
@@ -40,6 +52,8 @@ function resetMocks() {
   mockedQualityCheck.create.mockReset();
   mockedQualityCheck.findFirst.mockReset();
   mockedQualityCheck.findMany.mockReset();
+  mockedInventoryItem.create.mockReset();
+  mockedInventoryMovement.create.mockReset();
   vi.mocked(recordAudit).mockReset();
 }
 
@@ -55,7 +69,13 @@ function mockHappyPathOpportunityAndOrder() {
     opportunityId: "op1",
     printStatus: "CONCLUIDA",
     jobId: "job1",
+    job: { id: "job1", quantityProduced: 4, directCost: new Prisma.Decimal("40.00") },
   } as never);
+  // Default para o caminho aprovado (Sprint 8 — INV-1): a maioria dos testes
+  // de APROVADO/RESSALVA não está testando o estoque em si, só precisa que a
+  // criação do InventoryItem não quebre por falta de mock.
+  mockedInventoryItem.create.mockResolvedValue({ id: "inv1" } as never);
+  mockedInventoryMovement.create.mockResolvedValue({ id: "invmov1" } as never);
 }
 
 describe("submitQualityCheck", () => {
@@ -315,6 +335,102 @@ describe("submitQualityCheck", () => {
     // rejectionReason só é persistido quando result = REPROVADO.
     expect(mockedQualityCheck.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ rejectionReason: null }) }),
+    );
+  });
+
+  // --- Sprint 8 (INV-1): aprovação gera InventoryItem, reprovação nunca gera --
+
+  it("APROVADO gera o InventoryItem com a quantidade do Job e o PRODUCAO inicial, na mesma transação", async () => {
+    mockHappyPathOpportunityAndOrder(); // job1: quantityProduced=4, directCost=40.00
+    mockedQualityCheck.create.mockResolvedValue({ id: "qc-aprovado", result: "APROVADO" } as never);
+    mockedInventoryItem.create.mockResolvedValue({ id: "inv-novo", quantityProduced: 4 } as never);
+
+    await submitQualityCheck(
+      { opportunityId: "op1", productionOrderId: "po1", items: baseItems, result: "APROVADO" },
+      "actor1",
+    );
+
+    expect(mockedInventoryItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          opportunityId: "op1",
+          jobId: "job1",
+          qualityCheckId: "qc-aprovado",
+          quantityProduced: 4,
+          quantityAvailable: 4,
+        }),
+      }),
+    );
+    // unitCost = directCost / quantityProduced = 40.00 / 4 = 10.
+    const createArg = mockedInventoryItem.create.mock.calls[0]?.[0] as { data: Record<string, unknown> };
+    expect((createArg.data.unitCost as Prisma.Decimal).toString()).toBe("10");
+    expect(mockedInventoryMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ type: "PRODUCAO", quantity: 4, availableBefore: 0, availableAfter: 4 }),
+      }),
+    );
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: "inventory_item", action: "inventory_item.create" }),
+      expect.anything(),
+    );
+  });
+
+  it("APROVADO_COM_RESSALVA também gera o InventoryItem", async () => {
+    mockHappyPathOpportunityAndOrder();
+    mockedQualityCheck.create.mockResolvedValue({ id: "qc-ressalva", result: "APROVADO_COM_RESSALVA" } as never);
+
+    await submitQualityCheck(
+      { opportunityId: "op1", productionOrderId: "po1", items: baseItems, result: "APROVADO_COM_RESSALVA" },
+      "actor1",
+    );
+
+    expect(mockedInventoryItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ qualityCheckId: "qc-ressalva" }) }),
+    );
+  });
+
+  it("REPROVADO nunca gera InventoryItem (só o retrabalho)", async () => {
+    mockHappyPathOpportunityAndOrder();
+    mockedQualityCheck.create.mockResolvedValue({ id: "qc-reprovado", result: "REPROVADO" } as never);
+    mockedOpportunity.update.mockResolvedValue({ id: "op1", stage: "DESENVOLVIMENTO" } as never);
+    mockedProductionOrder.create.mockResolvedValue({ id: "po-rework" } as never);
+
+    await submitQualityCheck(
+      {
+        opportunityId: "op1",
+        productionOrderId: "po1",
+        items: baseItems,
+        result: "REPROVADO",
+        rejectionReason: "Falha de aderência.",
+      },
+      "actor1",
+    );
+
+    expect(mockedInventoryItem.create).not.toHaveBeenCalled();
+    expect(mockedInventoryMovement.create).not.toHaveBeenCalled();
+  });
+
+  it("sem Job vinculado (orçamento manual): usa quantidade 1 como fallback e unitCost nulo", async () => {
+    mockedOpportunity.findUnique.mockResolvedValue({ id: "op1", stage: "QUALIDADE" } as never);
+    mockedProductionOrder.findUnique.mockResolvedValue({
+      id: "po1",
+      opportunityId: "op1",
+      printStatus: "CONCLUIDA",
+      jobId: null,
+      job: null,
+    } as never);
+    mockedQualityCheck.create.mockResolvedValue({ id: "qc-manual", result: "APROVADO" } as never);
+    mockedInventoryItem.create.mockResolvedValue({ id: "inv-manual" } as never);
+
+    await submitQualityCheck(
+      { opportunityId: "op1", productionOrderId: "po1", items: baseItems, result: "APROVADO" },
+      "actor1",
+    );
+
+    expect(mockedInventoryItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ jobId: null, quantityProduced: 1, quantityAvailable: 1, unitCost: null }),
+      }),
     );
   });
 });
